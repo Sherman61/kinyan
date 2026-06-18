@@ -90,49 +90,54 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
 ?>
 <section class="form-shell">
     <h1><?= $editing ? 'Edit car listing' : 'Post your car' ?></h1>
+    <p class="form-intro">Use the regular sale price for cars being sold. For a lease takeover, check the lease box and fill in the monthly payment, takeover amount, and lease end date.</p>
     <form method="post" enctype="multipart/form-data" class="form-grid">
         <?= csrf_field() ?>
-        <label>Title<input required name="title" value="<?= e($car['title'] ?? '') ?>"></label>
-        <label>Make<input required name="make" value="<?= e($car['make'] ?? '') ?>"></label>
-        <label>Model<input required name="model" value="<?= e($car['model'] ?? '') ?>"></label>
-        <label>Trim<input name="trim" value="<?= e($car['trim'] ?? '') ?>"></label>
-        <label>Year<input required type="number" name="year" value="<?= e($car['year'] ?? '') ?>"></label>
-        <label>Mileage<input required type="number" name="mileage" value="<?= e($car['mileage'] ?? '') ?>"></label>
-        <label data-price-field><span data-price-label>Asking price</span><input required type="number" step="1" name="price" value="<?= e($car['price'] ?? '') ?>"></label>
-        <label>VIN optional<input name="vin" value="<?= e($car['vin'] ?? '') ?>"></label>
-        <label>Exterior color<input name="exterior_color" value="<?= e($car['exterior_color'] ?? '') ?>"></label>
-        <label>Interior color<input name="interior_color" value="<?= e($car['interior_color'] ?? '') ?>"></label>
+        <div class="form-section full"><h2>Vehicle basics</h2><p>These fields appear in search results and on the listing page.</p></div>
+        <label class="full">Listing title<input required name="title" value="<?= e($car['title'] ?? '') ?>" placeholder="2019 Toyota Sienna XLE - clean title, 82k miles"></label>
+        <label>Make<input required name="make" value="<?= e($car['make'] ?? '') ?>" placeholder="Toyota"></label>
+        <label>Model<input required name="model" value="<?= e($car['model'] ?? '') ?>" placeholder="Sienna"></label>
+        <label>Trim<input name="trim" value="<?= e($car['trim'] ?? '') ?>" placeholder="XLE, Limited, EX-L"></label>
+        <label>Year<input required type="number" min="1900" max="<?= (int)date('Y') + 1 ?>" name="year" value="<?= e($car['year'] ?? '') ?>" placeholder="<?= (int)date('Y') - 4 ?>"></label>
+        <label>Mileage<input required type="number" min="0" inputmode="numeric" name="mileage" value="<?= e($car['mileage'] ?? '') ?>" placeholder="82000"></label>
+        <label data-price-field><span data-price-label>Asking price</span><input required type="number" min="0" step="1" inputmode="numeric" name="price" value="<?= e($car['price'] ?? '') ?>" placeholder="28500"><small>Required for regular sale listings. Do not include commas or a dollar sign.</small></label>
+        <label>VIN optional<input name="vin" value="<?= e($car['vin'] ?? '') ?>" placeholder="17-character VIN if you want to include it"></label>
+        <label>Exterior color<input name="exterior_color" value="<?= e($car['exterior_color'] ?? '') ?>" placeholder="White"></label>
+        <label>Interior color<input name="interior_color" value="<?= e($car['interior_color'] ?? '') ?>" placeholder="Gray leather"></label>
         <label>Body type<select name="body_type"><?php foreach ($bodyTypes as $v): ?><option <?= selected($car['body_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
         <label>Transmission<select name="transmission"><?php foreach ($transmissions as $v): ?><option <?= selected($car['transmission'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
-        <label>Drivetrain<input name="drivetrain" value="<?= e($car['drivetrain'] ?? '') ?>"></label>
+        <label>Drivetrain<input name="drivetrain" value="<?= e($car['drivetrain'] ?? '') ?>" placeholder="FWD, AWD, 4WD"></label>
         <label>Fuel type<select name="fuel_type"><?php foreach ($fuelTypes as $v): ?><option <?= selected($car['fuel_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
-        <label>Engine<input name="engine" value="<?= e($car['engine'] ?? '') ?>"></label>
+        <label>Engine<input name="engine" value="<?= e($car['engine'] ?? '') ?>" placeholder="3.5L V6, hybrid, electric"></label>
         <label>Condition<select name="condition_status"><?php foreach ($conditions as $v): ?><option <?= selected($car['condition_status'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
-        <label>Accident history<input name="accident_history" value="<?= e($car['accident_history'] ?? '') ?>"></label>
+        <label>Accident history<input name="accident_history" value="<?= e($car['accident_history'] ?? '') ?>" placeholder="No accidents, minor rear bumper repair, unknown"></label>
         <label class="check"><input type="checkbox" name="clean_title" <?= checked($car['clean_title'] ?? 1) ?>> Clean title</label>
-        <label class="check"><input type="checkbox" name="lease_takeover" data-lease-toggle <?= checked($car['lease_takeover'] ?? 0) ?>> Lease takeover</label>
+        <label class="check"><input type="checkbox" name="lease_takeover" data-lease-toggle <?= checked($car['lease_takeover'] ?? 0) ?>> This is a lease takeover, not a regular sale</label>
         <fieldset class="lease-fields full" data-lease-fields>
             <legend>Lease takeover details</legend>
+            <p class="field-note">Fill this section only when someone will take over the remaining lease. Monthly payment and lease end date are required for lease takeover listings.</p>
             <div class="form-grid nested">
-                <label>Monthly payment<input type="number" min="0" step="1" name="lease_monthly_payment" value="<?= e($car['lease_monthly_payment'] ?? '') ?>"></label>
-                <label>Due at takeover<input type="number" min="0" step="1" name="lease_down_payment" value="<?= e($car['lease_down_payment'] ?? '') ?>"></label>
-                <label>Annual mileage allowance<input type="number" min="0" name="lease_mileage_allowance" value="<?= e($car['lease_mileage_allowance'] ?? '') ?>"></label>
-                <label>Miles used<input type="number" min="0" name="lease_miles_used" value="<?= e($car['lease_miles_used'] ?? '') ?>"></label>
-                <label>Transfer fee<input type="number" min="0" step="1" name="lease_transfer_fee" value="<?= e($car['lease_transfer_fee'] ?? '') ?>"></label>
-                <label>Lease company<input name="lease_company" value="<?= e($car['lease_company'] ?? '') ?>"></label>
-                <label>Lease end date<input type="date" name="lease_end_date" data-lease-end-date value="<?= e($car['lease_end_date'] ?? '') ?>"></label>
-                <label>Months left<input readonly data-lease-months-display value="<?= e($car['lease_months_left'] ?? '') ?>"></label>
+                <label>Monthly payment<input type="number" min="0" step="1" inputmode="numeric" name="lease_monthly_payment" value="<?= e($car['lease_monthly_payment'] ?? '') ?>" placeholder="699" data-required-when-lease></label>
+                <label>Due at takeover<input type="number" min="0" step="1" inputmode="numeric" name="lease_down_payment" value="<?= e($car['lease_down_payment'] ?? '') ?>" placeholder="2500"><small>Cash due from the new driver at transfer.</small></label>
+                <label>Annual mileage allowance<input type="number" min="0" inputmode="numeric" name="lease_mileage_allowance" value="<?= e($car['lease_mileage_allowance'] ?? '') ?>" placeholder="12000"></label>
+                <label>Miles used<input type="number" min="0" inputmode="numeric" name="lease_miles_used" value="<?= e($car['lease_miles_used'] ?? '') ?>" placeholder="18500"></label>
+                <label>Transfer fee<input type="number" min="0" step="1" inputmode="numeric" name="lease_transfer_fee" value="<?= e($car['lease_transfer_fee'] ?? '') ?>" placeholder="595"></label>
+                <label>Lease company<input name="lease_company" value="<?= e($car['lease_company'] ?? '') ?>" placeholder="Toyota Financial, Honda Financial"></label>
+                <label>Lease end date<input type="date" name="lease_end_date" data-lease-end-date data-required-when-lease value="<?= e($car['lease_end_date'] ?? '') ?>"></label>
+                <label>Months left<input readonly data-lease-months-display value="<?= e($car['lease_months_left'] ?? '') ?>" placeholder="Calculated automatically"></label>
             </div>
         </fieldset>
-        <label class="full">Description<textarea required name="description" rows="6"><?= e($car['description'] ?? '') ?></textarea></label>
-        <label>City<input required name="city" value="<?= e($car['city'] ?? '') ?>"></label>
-        <label>State<input required maxlength="2" name="state" value="<?= e($car['state'] ?? '') ?>"></label>
-        <label>ZIP optional<input name="zip" value="<?= e($car['zip'] ?? '') ?>"></label>
-        <label>Seller name<input required name="seller_name" value="<?= e($car['seller_name'] ?? current_user()['name']) ?>"></label>
-        <label>Seller phone<input required name="seller_phone" value="<?= e($car['seller_phone'] ?? current_user()['phone']) ?>"></label>
-        <label>Seller email optional<input type="email" name="seller_email" value="<?= e($car['seller_email'] ?? current_user()['email']) ?>"></label>
+        <div class="form-section full"><h2>Condition and seller notes</h2><p>Be direct about condition, title, maintenance, and anything a buyer should know before calling.</p></div>
+        <label class="full">Description<textarea required name="description" rows="6" placeholder="Example: Clean family minivan, non-smoker, recent tires and brakes, oil changed regularly. Small scratch on rear bumper. Available to show in Lakewood evenings."><?= e($car['description'] ?? '') ?></textarea></label>
+        <div class="form-section full"><h2>Location and contact</h2><p>This is what buyers use to contact you directly. Email is optional.</p></div>
+        <label>City<input required name="city" value="<?= e($car['city'] ?? '') ?>" placeholder="Lakewood"></label>
+        <label>State<input required maxlength="2" name="state" value="<?= e($car['state'] ?? '') ?>" placeholder="NJ"></label>
+        <label>ZIP optional<input name="zip" inputmode="numeric" value="<?= e($car['zip'] ?? '') ?>" placeholder="08701"></label>
+        <label>Seller name<input required name="seller_name" value="<?= e($car['seller_name'] ?? current_user()['name']) ?>" placeholder="Your name"></label>
+        <label>Seller phone<input required name="seller_phone" inputmode="tel" value="<?= e($car['seller_phone'] ?? current_user()['phone']) ?>" placeholder="732-555-1234"></label>
+        <label>Seller email optional<input type="email" name="seller_email" value="<?= e($car['seller_email'] ?? current_user()['email']) ?>" placeholder="you@example.com"></label>
         <label>Preferred contact<select name="preferred_contact_method"><?php foreach ($contactMethods as $v): ?><option <?= selected($car['preferred_contact_method'] ?? 'Any', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
-        <label class="full">Images<input type="file" name="images[]" multiple accept=".jpg,.jpeg,.jfif,.png,.webp,image/jpeg,image/png,image/webp"></label>
+        <label class="full">Photos<input type="file" name="images[]" multiple accept=".jpg,.jpeg,.jfif,.png,.webp,image/jpeg,image/png,image/webp"><small>Upload up to 10 JPG, PNG, or WEBP photos. Use clear exterior, interior, odometer, and damage photos when possible.</small></label>
         <button class="button full" type="submit" <?= $editing ? 'data-confirm="Save these listing changes?"' : '' ?>><?= $editing ? 'Save changes' : 'Submit listing' ?></button>
     </form>
 </section>

@@ -13,12 +13,32 @@ foreach (['make','model','body_type','transmission','fuel_type','condition_statu
         $params[] = $_GET[$field];
     }
 }
+$listingType = $_GET['listing_type'] ?? '';
+if ($listingType === 'sale') {
+    $where[] = 'c.lease_takeover = 0';
+} elseif ($listingType === 'lease') {
+    $where[] = 'c.lease_takeover = 1';
+}
 if ($q !== '') {
     $where[] = '(c.title LIKE ? OR c.make LIKE ? OR c.model LIKE ? OR c.city LIKE ?)';
     array_push($params, "%$q%", "%$q%", "%$q%", "%$q%");
 }
-foreach ([['min_year','c.year >= ?'],['max_year','c.year <= ?'],['min_price','c.price >= ?'],['max_price','c.price <= ?'],['max_mileage','c.mileage <= ?']] as [$key,$sql]) {
+foreach ([['min_year','c.year >= ?'],['max_year','c.year <= ?'],['max_mileage','c.mileage <= ?']] as [$key,$sql]) {
     if (isset($_GET[$key]) && $_GET[$key] !== '') {
+        $where[] = $sql;
+        $params[] = (int)$_GET[$key];
+    }
+}
+foreach ([['min_price','c.price >= ?'],['max_price','c.price <= ?']] as [$key,$sql]) {
+    if (isset($_GET[$key]) && $_GET[$key] !== '') {
+        $where[] = 'c.lease_takeover = 0';
+        $where[] = $sql;
+        $params[] = (int)$_GET[$key];
+    }
+}
+foreach ([['min_monthly_payment','c.lease_monthly_payment >= ?'],['max_monthly_payment','c.lease_monthly_payment <= ?'],['max_takeover_due','c.lease_down_payment <= ?'],['min_months_left','c.lease_months_left >= ?'],['max_months_left','c.lease_months_left <= ?']] as [$key,$sql]) {
+    if (isset($_GET[$key]) && $_GET[$key] !== '') {
+        $where[] = 'c.lease_takeover = 1';
         $where[] = $sql;
         $params[] = (int)$_GET[$key];
     }
@@ -35,6 +55,9 @@ $sorts = [
     'oldest' => 'c.created_at ASC',
     'price_asc' => 'c.price ASC',
     'price_desc' => 'c.price DESC',
+    'monthly_asc' => 'c.lease_takeover DESC, c.lease_monthly_payment ASC',
+    'monthly_desc' => 'c.lease_takeover DESC, c.lease_monthly_payment DESC',
+    'takeover_due_asc' => 'c.lease_takeover DESC, c.lease_down_payment ASC',
     'mileage_asc' => 'c.mileage ASC',
     'year_desc' => 'c.year DESC',
     'year_asc' => 'c.year ASC',
@@ -55,12 +78,14 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
     <aside class="filters" data-filters>
         <button class="filter-close" data-filter-toggle>Filters</button>
         <form method="get" class="filter-form">
-            <input name="q" value="<?= e($q) ?>" placeholder="Search cars">
-            <input name="make" value="<?= e($_GET['make'] ?? '') ?>" placeholder="Make">
-            <input name="model" value="<?= e($_GET['model'] ?? '') ?>" placeholder="Model">
-            <div class="two"><input name="min_year" value="<?= e($_GET['min_year'] ?? '') ?>" placeholder="Min year"><input name="max_year" value="<?= e($_GET['max_year'] ?? '') ?>" placeholder="Max year"></div>
-            <div class="two"><input name="min_price" value="<?= e($_GET['min_price'] ?? '') ?>" placeholder="Min price"><input name="max_price" value="<?= e($_GET['max_price'] ?? '') ?>" placeholder="Max price"></div>
-            <input name="max_mileage" value="<?= e($_GET['max_mileage'] ?? '') ?>" placeholder="Max mileage">
+            <input name="q" value="<?= e($q) ?>" placeholder="Search make, model, city">
+            <select name="listing_type"><option value="">Sale and lease</option><option value="sale" <?= selected($listingType, 'sale') ?>>Regular sale only</option><option value="lease" <?= selected($listingType, 'lease') ?>>Lease takeover only</option></select>
+            <input name="make" value="<?= e($_GET['make'] ?? '') ?>" placeholder="Make, e.g. Toyota">
+            <input name="model" value="<?= e($_GET['model'] ?? '') ?>" placeholder="Model, e.g. Sienna">
+            <div class="two"><input type="number" name="min_year" value="<?= e($_GET['min_year'] ?? '') ?>" placeholder="Min year"><input type="number" name="max_year" value="<?= e($_GET['max_year'] ?? '') ?>" placeholder="Max year"></div>
+            <div class="filter-group"><span>Regular sale price</span><div class="two"><input type="number" name="min_price" value="<?= e($_GET['min_price'] ?? '') ?>" placeholder="Min sale price"><input type="number" name="max_price" value="<?= e($_GET['max_price'] ?? '') ?>" placeholder="Max sale price"></div></div>
+            <div class="filter-group"><span>Lease takeover terms</span><div class="two"><input type="number" name="min_monthly_payment" value="<?= e($_GET['min_monthly_payment'] ?? '') ?>" placeholder="Min monthly"><input type="number" name="max_monthly_payment" value="<?= e($_GET['max_monthly_payment'] ?? '') ?>" placeholder="Max monthly"></div><input type="number" name="max_takeover_due" value="<?= e($_GET['max_takeover_due'] ?? '') ?>" placeholder="Max due at takeover"><div class="two"><input type="number" name="min_months_left" value="<?= e($_GET['min_months_left'] ?? '') ?>" placeholder="Min months left"><input type="number" name="max_months_left" value="<?= e($_GET['max_months_left'] ?? '') ?>" placeholder="Max months left"></div></div>
+            <input type="number" name="max_mileage" value="<?= e($_GET['max_mileage'] ?? '') ?>" placeholder="Max mileage">
             <select name="body_type"><option value="">Body type</option><?php foreach ($bodyTypes as $v): ?><option <?= selected($_GET['body_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
             <select name="transmission"><option value="">Transmission</option><?php foreach ($transmissions as $v): ?><option <?= selected($_GET['transmission'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
             <select name="fuel_type"><option value="">Fuel type</option><?php foreach ($fuelTypes as $v): ?><option <?= selected($_GET['fuel_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
@@ -82,6 +107,9 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
                     <option value="oldest" <?= selected($_GET['sort'] ?? '', 'oldest') ?>>Oldest</option>
                     <option value="price_asc" <?= selected($_GET['sort'] ?? '', 'price_asc') ?>>Price low to high</option>
                     <option value="price_desc" <?= selected($_GET['sort'] ?? '', 'price_desc') ?>>Price high to low</option>
+                    <option value="monthly_asc" <?= selected($_GET['sort'] ?? '', 'monthly_asc') ?>>Lease payment low to high</option>
+                    <option value="monthly_desc" <?= selected($_GET['sort'] ?? '', 'monthly_desc') ?>>Lease payment high to low</option>
+                    <option value="takeover_due_asc" <?= selected($_GET['sort'] ?? '', 'takeover_due_asc') ?>>Takeover due low to high</option>
                     <option value="mileage_asc" <?= selected($_GET['sort'] ?? '', 'mileage_asc') ?>>Mileage low to high</option>
                     <option value="year_desc" <?= selected($_GET['sort'] ?? '', 'year_desc') ?>>Year newest first</option>
                     <option value="year_asc" <?= selected($_GET['sort'] ?? '', 'year_asc') ?>>Year oldest first</option>

@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const priceInput = priceField?.querySelector('input[name="price"]');
   const leaseEndDate = document.querySelector('[data-lease-end-date]');
   const leaseMonthsDisplay = document.querySelector('[data-lease-months-display]');
+  const leaseRequiredInputs = document.querySelectorAll('[data-required-when-lease]');
 
   const monthsUntil = (value) => {
     if (!value) return '';
@@ -108,6 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
       priceInput.required = !isLease;
       priceLabel.textContent = isLease ? 'Takeover amount due' : 'Asking price';
     }
+    leaseRequiredInputs.forEach((input) => {
+      input.required = isLease;
+    });
     if (leaseMonthsDisplay && leaseEndDate) {
       leaseMonthsDisplay.value = monthsUntil(leaseEndDate.value);
     }
