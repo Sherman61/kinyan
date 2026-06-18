@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS car_images (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   car_listing_id INT UNSIGNED NOT NULL,
   image_path VARCHAR(255) NOT NULL,
+  image_title VARCHAR(160) NULL,
   sort_order INT UNSIGNED NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_car_sort (car_listing_id, sort_order),

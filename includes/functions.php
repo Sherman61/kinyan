@@ -211,6 +211,23 @@ function car_images(int $listingId): array
     return $stmt->fetchAll();
 }
 
+function car_image_library_for_user(int $userId, int $excludeListingId = 0): array
+{
+    $sql = 'SELECT MIN(i.id) id, i.image_path, COALESCE(MAX(NULLIF(i.image_title, "")), "") image_title, MAX(i.created_at) created_at
+        FROM car_images i
+        JOIN car_listings c ON c.id = i.car_listing_id
+        WHERE c.user_id = ?';
+    $params = [$userId];
+    if ($excludeListingId > 0) {
+        $sql .= ' AND i.car_listing_id <> ?';
+        $params[] = $excludeListingId;
+    }
+    $sql .= ' GROUP BY i.image_path ORDER BY created_at DESC LIMIT 80';
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
 function clean_phone_href(?string $phone): string
 {
     return preg_replace('/[^0-9+]/', '', (string)$phone) ?: '';
@@ -282,13 +299,13 @@ function upload_car_images(int $listingId, array $files): array
             continue;
         }
         $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
-        $mime = $finfo->file($tmp);
+        $mime = (string)$finfo->file($tmp);
         $imageInfo = @getimagesize($tmp);
         $imageType = @exif_imagetype($tmp);
         if (
             !in_array($ext, $allowedExt, true) ||
             !isset($allowedMimeByType[$imageType]) ||
-            $mime !== $allowedMimeByType[$imageType] ||
+            (!str_starts_with($mime, 'image/') && $mime !== 'application/octet-stream') ||
             !$imageInfo ||
             ($imageInfo[2] ?? null) !== $imageType
         ) {

@@ -7,11 +7,16 @@ require_login();
 $id = (int)($_GET['id'] ?? 0);
 $editing = $id > 0;
 $car = [];
+$existingImages = [];
+$libraryImages = [];
 if ($editing) {
     if (!owns_listing('car_listings', $id) && !is_admin()) die('Not allowed.');
     $stmt = db()->prepare('SELECT * FROM car_listings WHERE id = ?');
     $stmt->execute([$id]);
     $car = $stmt->fetch() ?: [];
+    $existingImages = car_images($id);
+    $libraryUserId = (int)($car['user_id'] ?? current_user()['id']);
+    $libraryImages = car_image_library_for_user($libraryUserId, $id);
 }
 if (is_post()) {
     verify_csrf();
@@ -56,9 +61,11 @@ if (is_post()) {
                 $nextStatus = edited_listing_status((string)$car['status'], 'car_listings');
                 $stmt = db()->prepare('UPDATE car_listings SET title=?, make=?, model=?, trim=?, year=?, mileage=?, price=?, vin=?, exterior_color=?, interior_color=?, body_type=?, transmission=?, drivetrain=?, fuel_type=?, engine=?, condition_status=?, accident_history=?, clean_title=?, lease_takeover=?, lease_months_left=?, lease_monthly_payment=?, lease_down_payment=?, lease_mileage_allowance=?, lease_miles_used=?, lease_transfer_fee=?, lease_company=?, lease_end_date=?, description=?, city=?, state=?, zip=?, seller_name=?, seller_phone=?, seller_email=?, preferred_contact_method=?, status=? WHERE id=?');
                 $stmt->execute([...array_values($data), $nextStatus, $id]);
+                $galleryResult = update_car_gallery($id, (int)$car['user_id']);
                 $imageResult = upload_car_images($id, $_FILES['images'] ?? []);
                 db()->commit();
                 flash('success', $nextStatus === 'pending' ? 'Listing changes were submitted for approval.' : 'Listing updated.');
+                flash_gallery_update_result($galleryResult);
                 flash_image_upload_result($imageResult);
                 finish_listing_save('dashboard.php');
             } else {
@@ -95,7 +102,7 @@ function flash_image_upload_result(array $result): void
     $failed = (int)($result['failed'] ?? 0);
     $skipped = (int)($result['skipped'] ?? 0);
     if ($saved > 0) {
-        flash('success', $saved . ' photo' . ($saved === 1 ? '' : 's') . ' uploaded.');
+        flash('success', $saved . ' photo' . ($saved === 1 ? '' : 's') . ' passed and uploaded.');
     }
     if ($failed > 0 || $skipped > 0) {
         $parts = [];
@@ -106,6 +113,66 @@ function flash_image_upload_result(array $result): void
             $parts[] = $skipped . ' skipped because each listing can have up to 10 photos';
         }
         flash('info', 'Some photos were not added: ' . implode(', ', $parts) . '.');
+    }
+}
+
+function update_car_gallery(int $listingId, int $ownerId): array
+{
+    $deleted = 0;
+    $attached = 0;
+
+    foreach (($_POST['delete_images'] ?? []) as $imageId) {
+        $stmt = db()->prepare('SELECT i.image_path FROM car_images i JOIN car_listings c ON c.id = i.car_listing_id WHERE i.id = ? AND i.car_listing_id = ? AND (c.user_id = ? OR ? = 1)');
+        $stmt->execute([(int)$imageId, $listingId, current_user()['id'], is_admin() ? 1 : 0]);
+        $path = $stmt->fetchColumn();
+        if (!$path) {
+            continue;
+        }
+        db()->prepare('DELETE FROM car_images WHERE id = ?')->execute([(int)$imageId]);
+        $deleted++;
+        $used = db()->prepare('SELECT COUNT(*) FROM car_images WHERE image_path = ?');
+        $used->execute([$path]);
+        if ((int)$used->fetchColumn() === 0 && is_file(BASE_PATH . '/' . $path)) {
+            @unlink(BASE_PATH . '/' . $path);
+        }
+    }
+
+    foreach (($_POST['image_titles'] ?? []) as $imageId => $title) {
+        $sort = (int)($_POST['image_sort'][$imageId] ?? 0);
+        $stmt = db()->prepare('UPDATE car_images i JOIN car_listings c ON c.id = i.car_listing_id SET i.image_title = ?, i.sort_order = ? WHERE i.id = ? AND i.car_listing_id = ? AND (c.user_id = ? OR ? = 1)');
+        $stmt->execute([trim((string)$title), $sort, (int)$imageId, $listingId, current_user()['id'], is_admin() ? 1 : 0]);
+    }
+
+    $countStmt = db()->prepare('SELECT COUNT(*) FROM car_images WHERE car_listing_id = ?');
+    $countStmt->execute([$listingId]);
+    $slots = max(0, 10 - (int)$countStmt->fetchColumn());
+    if ($slots > 0) {
+        $sortStmt = db()->prepare('SELECT COALESCE(MAX(sort_order), -1) FROM car_images WHERE car_listing_id = ?');
+        $sortStmt->execute([$listingId]);
+        $sort = (int)$sortStmt->fetchColumn() + 1;
+        $selected = array_slice(array_map('intval', $_POST['library_images'] ?? []), 0, $slots);
+        foreach ($selected as $imageId) {
+            $stmt = db()->prepare('SELECT i.image_path, i.image_title FROM car_images i JOIN car_listings c ON c.id = i.car_listing_id WHERE i.id = ? AND i.car_listing_id <> ? AND (c.user_id = ? OR ? = 1) AND NOT EXISTS (SELECT 1 FROM car_images existing WHERE existing.car_listing_id = ? AND existing.image_path = i.image_path)');
+            $stmt->execute([$imageId, $listingId, $ownerId, is_admin() ? 1 : 0, $listingId]);
+            $image = $stmt->fetch();
+            if (!$image) {
+                continue;
+            }
+            db()->prepare('INSERT INTO car_images (car_listing_id, image_path, image_title, sort_order) VALUES (?, ?, ?, ?)')->execute([$listingId, $image['image_path'], $image['image_title'], $sort++]);
+            $attached++;
+        }
+    }
+
+    return ['deleted' => $deleted, 'attached' => $attached];
+}
+
+function flash_gallery_update_result(array $result): void
+{
+    if (!empty($result['attached'])) {
+        flash('success', (int)$result['attached'] . ' library photo' . ((int)$result['attached'] === 1 ? '' : 's') . ' added.');
+    }
+    if (!empty($result['deleted'])) {
+        flash('info', (int)$result['deleted'] . ' photo' . ((int)$result['deleted'] === 1 ? '' : 's') . ' removed from this listing.');
     }
 }
 
@@ -169,6 +236,38 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
         <label>Seller phone<input required name="seller_phone" inputmode="tel" value="<?= e($car['seller_phone'] ?? current_user()['phone']) ?>" placeholder="732-555-1234"></label>
         <label>Seller email optional<input type="email" name="seller_email" value="<?= e($car['seller_email'] ?? current_user()['email']) ?>" placeholder="you@example.com"></label>
         <label>Preferred contact<select name="preferred_contact_method"><?php foreach ($contactMethods as $v): ?><option <?= selected($car['preferred_contact_method'] ?? 'Any', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
+        <?php if ($editing): ?>
+        <div class="form-section full"><h2>Photo gallery</h2><p>Existing photos stay on this listing unless you mark them for removal. Use sort numbers to choose the display order.</p></div>
+        <?php if ($existingImages): ?>
+        <div class="image-manager full">
+            <?php foreach ($existingImages as $index => $img): ?>
+            <div class="image-manager-item">
+                <img src="<?= e($img['image_path']) ?>" alt="<?= e($img['image_title'] ?: $car['title']) ?>">
+                <label>Title<input name="image_titles[<?= (int)$img['id'] ?>]" value="<?= e($img['image_title'] ?? '') ?>" placeholder="Front exterior, dashboard, odometer"></label>
+                <label>Order<input type="number" min="0" name="image_sort[<?= (int)$img['id'] ?>]" value="<?= e($img['sort_order'] ?? $index) ?>"></label>
+                <label class="check"><input type="checkbox" name="delete_images[]" value="<?= (int)$img['id'] ?>"> Remove from this listing</label>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php else: ?>
+        <p class="field-note full">This listing does not have photos yet.</p>
+        <?php endif; ?>
+        <?php if ($libraryImages): ?>
+        <div class="library-picker full">
+            <h3>Add from your photo library</h3>
+            <p class="field-note">Choose photos you already uploaded on another listing. They will be attached to this car without removing them from the original listing.</p>
+            <div class="library-grid">
+                <?php foreach ($libraryImages as $img): ?>
+                <label>
+                    <input type="checkbox" name="library_images[]" value="<?= (int)$img['id'] ?>">
+                    <img src="<?= e($img['image_path']) ?>" alt="<?= e($img['image_title'] ?: 'Library photo') ?>">
+                    <span><?= e($img['image_title'] ?: 'Untitled photo') ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        <?php endif; ?>
         <label class="full">Photos<input type="file" name="images[]" multiple accept=".jpg,.jpeg,.jfif,.png,.webp,image/jpeg,image/png,image/webp"><small>Upload up to 10 JPG, PNG, or WEBP photos. Use clear exterior, interior, odometer, and damage photos when possible.</small></label>
         <button class="button full" type="submit" <?= $editing ? 'data-confirm="Save these listing changes?"' : '' ?>><?= $editing ? 'Save changes' : 'Submit listing' ?></button>
         <div class="upload-progress full" data-upload-status hidden>

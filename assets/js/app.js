@@ -13,14 +13,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const galleryMain = document.querySelector('[data-gallery-main]');
   const lightbox = document.querySelector('[data-lightbox]');
   const lightboxImage = document.querySelector('[data-lightbox-image]');
+  const galleryCaption = document.querySelector('[data-gallery-caption]');
+  const lightboxCaption = document.querySelector('[data-lightbox-caption]');
   const thumbs = [...document.querySelectorAll('[data-thumb]')];
   let activeImageIndex = 0;
   const setGalleryImage = (index) => {
     if (!galleryMain || thumbs.length === 0) return;
     activeImageIndex = (index + thumbs.length) % thumbs.length;
     const src = thumbs[activeImageIndex].dataset.thumb;
+    const title = thumbs[activeImageIndex].dataset.title || '';
     galleryMain.src = src;
-    if (lightboxImage) lightboxImage.src = src;
+    galleryMain.alt = title;
+    if (galleryCaption) galleryCaption.textContent = title;
+    if (lightboxImage) {
+      lightboxImage.src = src;
+      lightboxImage.alt = title;
+    }
+    if (lightboxCaption) lightboxCaption.textContent = title;
     thumbs.forEach((button, i) => {
       button.classList.toggle('active', i === activeImageIndex);
       if (i === activeImageIndex) button.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });

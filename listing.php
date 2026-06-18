@@ -12,6 +12,7 @@ if (!$car || ($car['status'] !== 'active' && !owns_listing('car_listings', $id) 
 increment_view('car_listings', $id);
 $images = car_images($id);
 $primary = $images[0]['image_path'] ?? 'assets/css/car-placeholder.svg';
+$primaryTitle = $images[0]['image_title'] ?? $car['title'];
 $sim = db()->prepare("SELECT c.*, (SELECT image_path FROM car_images i WHERE i.car_listing_id = c.id ORDER BY sort_order, id LIMIT 1) AS primary_image FROM car_listings c WHERE c.status='active' AND c.id <> ? AND (c.make = ? OR c.body_type = ?) ORDER BY c.created_at DESC LIMIT 4");
 $sim->execute([$id, $car['make'], $car['body_type']]);
 $vehicleName = trim($car['year'] . ' ' . $car['make'] . ' ' . $car['model'] . ' ' . $car['trim']);
@@ -24,10 +25,11 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$pri
         <div class="gallery">
             <div class="gallery-frame">
                 <button class="gallery-nav prev" type="button" data-gallery-prev aria-label="Previous photo">‹</button>
-                <img class="gallery-main" src="<?= e($primary) ?>" alt="<?= e($car['title']) ?>" data-gallery-main data-gallery-open>
+                <img class="gallery-main" src="<?= e($primary) ?>" alt="<?= e($primaryTitle) ?>" data-gallery-main data-gallery-open>
                 <button class="gallery-nav next" type="button" data-gallery-next aria-label="Next photo">›</button>
             </div>
-            <div class="thumbs" data-gallery-thumbs><?php foreach ($images as $img): ?><button data-thumb="<?= e($img['image_path']) ?>"><img src="<?= e($img['image_path']) ?>" alt="<?= e($car['title']) ?>"></button><?php endforeach; ?></div>
+            <p class="gallery-caption" data-gallery-caption><?= e($primaryTitle) ?></p>
+            <div class="thumbs" data-gallery-thumbs><?php foreach ($images as $img): ?><button data-thumb="<?= e($img['image_path']) ?>" data-title="<?= e($img['image_title'] ?: $car['title']) ?>"><img src="<?= e($img['image_path']) ?>" alt="<?= e($img['image_title'] ?: $car['title']) ?>"></button><?php endforeach; ?></div>
         </div>
         <section class="details-card"><h2>Description</h2><p><?= nl2br(e($car['description'])) ?></p></section>
         <section class="details-card"><h2>Vehicle details</h2><div class="spec-grid">
@@ -62,7 +64,7 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$pri
 <div class="image-lightbox" data-lightbox hidden>
     <button class="lightbox-close" type="button" data-lightbox-close aria-label="Close enlarged photo">×</button>
     <button class="lightbox-nav prev" type="button" data-gallery-prev aria-label="Previous photo">‹</button>
-    <img src="<?= e($primary) ?>" alt="<?= e($car['title']) ?>" data-lightbox-image>
+    <figure><img src="<?= e($primary) ?>" alt="<?= e($primaryTitle) ?>" data-lightbox-image><figcaption data-lightbox-caption><?= e($primaryTitle) ?></figcaption></figure>
     <button class="lightbox-nav next" type="button" data-gallery-next aria-label="Next photo">›</button>
 </div>
 <?php render_footer(); ?>
