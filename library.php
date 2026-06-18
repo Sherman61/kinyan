@@ -36,7 +36,7 @@ render_header('Image Library', 'Manage and review your uploaded Kinyan car image
                         <?php foreach ($links as $link): ?>
                             <a href="post-car.php?id=<?= (int)$link['id'] ?>">
                                 <?= e(trim($link['year'] . ' ' . $link['make'] . ' ' . $link['model'])) ?>
-                                <span><?= e($link['title']) ?> · order <?= (int)$link['sort_order'] ?></span>
+                                <span><?= e($link['title']) ?> · position <?= (int)$link['sort_order'] + 1 ?></span>
                             </a>
                         <?php endforeach; ?>
                     </div>

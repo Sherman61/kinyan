@@ -138,7 +138,7 @@ function update_car_gallery(int $listingId, int $ownerId): array
     }
 
     foreach (($_POST['image_titles'] ?? []) as $imageId => $title) {
-        $sort = (int)($_POST['image_sort'][$imageId] ?? 0);
+        $sort = max(0, (int)($_POST['image_sort'][$imageId] ?? 1) - 1);
         $stmt = db()->prepare('UPDATE car_images i JOIN car_listings c ON c.id = i.car_listing_id SET i.image_title = ?, i.sort_order = ? WHERE i.id = ? AND i.car_listing_id = ? AND (c.user_id = ? OR ? = 1)');
         $stmt->execute([trim((string)$title), $sort, (int)$imageId, $listingId, current_user()['id'], is_admin() ? 1 : 0]);
     }
@@ -244,7 +244,7 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
             <div class="image-manager-item">
                 <img src="<?= e($img['image_path']) ?>" alt="<?= e($img['image_title'] ?: $car['title']) ?>">
                 <label>Title<input name="image_titles[<?= (int)$img['id'] ?>]" value="<?= e($img['image_title'] ?? '') ?>" placeholder="Front exterior, dashboard, odometer"></label>
-                <label>Order<input type="number" min="0" name="image_sort[<?= (int)$img['id'] ?>]" value="<?= e($img['sort_order'] ?? $index) ?>"></label>
+                <label>Display position<input type="number" min="1" name="image_sort[<?= (int)$img['id'] ?>]" value="<?= (int)($img['sort_order'] ?? $index) + 1 ?>"></label>
                 <label class="check"><input type="checkbox" name="delete_images[]" value="<?= (int)$img['id'] ?>"> Remove from this listing</label>
             </div>
             <?php endforeach; ?>
