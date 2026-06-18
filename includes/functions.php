@@ -240,6 +240,9 @@ function upload_car_images(int $listingId, array $files): void
     if (!is_dir(UPLOAD_DIR)) {
         mkdir(UPLOAD_DIR, 0755, true);
     }
+    if (!class_exists('Imagick')) {
+        throw new RuntimeException('Image processing is temporarily unavailable. Please try again later.');
+    }
 
     $validUploads = [];
     $allowedExt = ['jpg', 'jpeg', 'jfif', 'png', 'webp'];
@@ -250,6 +253,11 @@ function upload_car_images(int $listingId, array $files): void
     ];
     $extByType = [
         IMAGETYPE_JPEG => 'jpg',
+        IMAGETYPE_PNG => 'png',
+        IMAGETYPE_WEBP => 'webp',
+    ];
+    $formatByType = [
+        IMAGETYPE_JPEG => 'jpeg',
         IMAGETYPE_PNG => 'png',
         IMAGETYPE_WEBP => 'webp',
     ];
@@ -287,27 +295,67 @@ function upload_car_images(int $listingId, array $files): void
         if ($width < 1 || $height < 1 || $width > 12000 || $height > 12000 || ($width * $height) > 50000000) {
             throw new RuntimeException('Images are too large. Upload a smaller image.');
         }
-        $validUploads[] = ['tmp' => $tmp, 'ext' => $extByType[$imageType]];
+        $validUploads[] = ['tmp' => $tmp, 'ext' => $extByType[$imageType], 'format' => $formatByType[$imageType]];
     }
-    if (count($validUploads) > 12) {
-        throw new RuntimeException('Upload up to 12 images at a time.');
+    if (count($validUploads) > 10) {
+        throw new RuntimeException('Upload up to 10 images at a time.');
     }
 
     $countStmt = db()->prepare('SELECT COUNT(*) FROM car_images WHERE car_listing_id = ?');
     $countStmt->execute([$listingId]);
     $sort = (int)$countStmt->fetchColumn();
-    if (($sort + count($validUploads)) > 20) {
-        throw new RuntimeException('Each listing can have up to 20 images.');
+    if (($sort + count($validUploads)) > 10) {
+        throw new RuntimeException('Each listing can have up to 10 images.');
     }
 
     foreach ($validUploads as $upload) {
         $safe = bin2hex(random_bytes(16)) . '.' . $upload['ext'];
         $dest = UPLOAD_DIR . '/' . $safe;
-        if (!move_uploaded_file($upload['tmp'], $dest)) {
+        if (!sanitize_uploaded_image($upload['tmp'], $dest, $upload['format'])) {
             throw new RuntimeException('Could not save uploaded image.');
         }
         $stmt = db()->prepare('INSERT INTO car_images (car_listing_id, image_path, sort_order) VALUES (?, ?, ?)');
         $stmt->execute([$listingId, UPLOAD_URL . '/' . $safe, $sort++]);
+    }
+}
+
+function sanitize_uploaded_image(string $source, string $dest, string $format): bool
+{
+    try {
+        $image = new Imagick();
+        $image->setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 128 * 1024 * 1024);
+        $image->setResourceLimit(Imagick::RESOURCETYPE_MAP, 256 * 1024 * 1024);
+        $image->readImage($source);
+        $image->setIteratorIndex(0);
+        $frame = $image->getImage();
+        $image->clear();
+        $image->destroy();
+
+        if (method_exists($frame, 'autoOrientImage')) {
+            $frame->autoOrientImage();
+        }
+        $frame->stripImage();
+        $frame->setImageFormat($format);
+        if ($format === 'jpeg' || $format === 'webp') {
+            $frame->setImageCompressionQuality(85);
+        }
+        if ($format === 'jpeg') {
+            $frame->setImageBackgroundColor('white');
+            $frame->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE);
+            $flattened = $frame->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
+            $frame->clear();
+            $frame->destroy();
+            $frame = $flattened;
+            $frame->setImageFormat('jpeg');
+            $frame->setImageCompressionQuality(85);
+        }
+        $ok = $frame->writeImage($dest);
+        $frame->clear();
+        $frame->destroy();
+        return $ok;
+    } catch (ImagickException $e) {
+        error_log($e->getMessage());
+        return false;
     }
 }
 
