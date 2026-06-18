@@ -268,16 +268,6 @@ function upload_car_images(int $listingId, array $files): array
         IMAGETYPE_PNG => 'image/png',
         IMAGETYPE_WEBP => 'image/webp',
     ];
-    $extByType = [
-        IMAGETYPE_JPEG => 'jpg',
-        IMAGETYPE_PNG => 'png',
-        IMAGETYPE_WEBP => 'webp',
-    ];
-    $formatByType = [
-        IMAGETYPE_JPEG => 'jpeg',
-        IMAGETYPE_PNG => 'png',
-        IMAGETYPE_WEBP => 'webp',
-    ];
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $failed = 0;
 
@@ -289,7 +279,7 @@ function upload_car_images(int $listingId, array $files): array
             $failed++;
             continue;
         }
-        if (($files['size'][$i] ?? 0) > 5 * 1024 * 1024) {
+        if (($files['size'][$i] ?? 0) > 15 * 1024 * 1024) {
             $failed++;
             continue;
         }
@@ -318,7 +308,7 @@ function upload_car_images(int $listingId, array $files): array
             $failed++;
             continue;
         }
-        $validUploads[] = ['tmp' => $tmp, 'ext' => $extByType[$imageType], 'format' => $formatByType[$imageType]];
+        $validUploads[] = ['tmp' => $tmp];
     }
 
     $countStmt = db()->prepare('SELECT COUNT(*) FROM car_images WHERE car_listing_id = ?');
@@ -333,9 +323,9 @@ function upload_car_images(int $listingId, array $files): array
     $saved = 0;
 
     foreach ($validUploads as $upload) {
-        $safe = bin2hex(random_bytes(16)) . '.' . $upload['ext'];
+        $safe = bin2hex(random_bytes(16)) . '.webp';
         $dest = UPLOAD_DIR . '/' . $safe;
-        if (!sanitize_uploaded_image($upload['tmp'], $dest, $upload['format'])) {
+        if (!sanitize_uploaded_image($upload['tmp'], $dest)) {
             $failed++;
             continue;
         }
@@ -353,7 +343,7 @@ function upload_car_images(int $listingId, array $files): array
     return ['saved' => $saved, 'failed' => $failed, 'skipped' => $skipped];
 }
 
-function sanitize_uploaded_image(string $source, string $dest, string $format): bool
+function sanitize_uploaded_image(string $source, string $dest): bool
 {
     try {
         $image = new Imagick();
@@ -368,21 +358,23 @@ function sanitize_uploaded_image(string $source, string $dest, string $format): 
         if (method_exists($frame, 'autoOrientImage')) {
             $frame->autoOrientImage();
         }
-        $frame->stripImage();
-        $frame->setImageFormat($format);
-        if ($format === 'jpeg' || $format === 'webp') {
-            $frame->setImageCompressionQuality(85);
-        }
-        if ($format === 'jpeg') {
-            $frame->setImageBackgroundColor('white');
+        $frame->setImageBackgroundColor('white');
+        if ($frame->getImageAlphaChannel()) {
             $frame->setImageAlphaChannel(Imagick::ALPHACHANNEL_REMOVE);
             $flattened = $frame->mergeImageLayers(Imagick::LAYERMETHOD_FLATTEN);
             $frame->clear();
             $frame->destroy();
             $frame = $flattened;
-            $frame->setImageFormat('jpeg');
-            $frame->setImageCompressionQuality(85);
         }
+        $width = $frame->getImageWidth();
+        $height = $frame->getImageHeight();
+        $maxDimension = 1800;
+        if ($width > $maxDimension || $height > $maxDimension) {
+            $frame->thumbnailImage($maxDimension, $maxDimension, true, true);
+        }
+        $frame->stripImage();
+        $frame->setImageFormat('webp');
+        $frame->setImageCompressionQuality(85);
         $ok = $frame->writeImage($dest);
         $frame->clear();
         $frame->destroy();

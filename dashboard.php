@@ -38,7 +38,7 @@ render_header('Dashboard', 'Manage your Kinyan listings and wanted posts.');
 ?>
 <section class="dashboard">
     <div class="page-title"><h1>Dashboard</h1><p>Manage your listings, buyer requests, and profile.</p></div>
-    <div class="dash-actions"><a class="button" href="post-car.php">Post a car</a><a class="button secondary" href="post-wanted.php">Post wanted</a></div>
+    <div class="dash-actions"><a class="button" href="post-car.php">Post a car</a><a class="button secondary" href="post-wanted.php">Post wanted</a><a class="button ghost" href="library.php">Image library</a></div>
     <section class="details-card">
         <h2>My car listings</h2>
         <div class="table-wrap"><table><thead><tr><th>Listing</th><th>Status</th><th>Views</th><th>Actions</th></tr></thead><tbody>

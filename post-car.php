@@ -268,7 +268,7 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
         </div>
         <?php endif; ?>
         <?php endif; ?>
-        <label class="full">Photos<input type="file" name="images[]" multiple accept=".jpg,.jpeg,.jfif,.png,.webp,image/jpeg,image/png,image/webp"><small>Upload up to 10 JPG, PNG, or WEBP photos. Use clear exterior, interior, odometer, and damage photos when possible.</small></label>
+        <label class="full">Photos<input type="file" name="images[]" multiple accept=".jpg,.jpeg,.jfif,.png,.webp,image/jpeg,image/png,image/webp"><small>Upload up to 10 JPG, PNG, or WEBP photos, up to 15MB each. Photos are resized and compressed to WebP automatically.</small></label>
         <button class="button full" type="submit" <?= $editing ? 'data-confirm="Save these listing changes?"' : '' ?>><?= $editing ? 'Save changes' : 'Submit listing' ?></button>
         <div class="upload-progress full" data-upload-status hidden>
             <div class="upload-progress-top"><strong data-upload-stage>Preparing listing</strong><span data-upload-percent>0%</span></div>

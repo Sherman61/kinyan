@@ -34,6 +34,7 @@ function render_header(string $title, string $description = '', array $meta = []
         <a href="<?= $prefix ?>post-wanted.php">Request</a>
         <?php if ($user): ?>
             <a href="<?= $prefix ?>dashboard.php">Dashboard</a>
+            <a class="<?= $current === 'library.php' ? 'active' : '' ?>" href="<?= $prefix ?>library.php">Library</a>
             <?php if (($user['role'] ?? '') === 'admin'): ?><a href="<?= $prefix ?>admin/index.php">Admin</a><?php endif; ?>
             <a href="<?= $prefix ?>login.php?action=logout">Log out</a>
         <?php else: ?>
