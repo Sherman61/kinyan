@@ -10,7 +10,7 @@ $car = [];
 $existingImages = [];
 $libraryImages = [];
 if ($editing) {
-    if (!owns_listing('car_listings', $id) && !is_admin()) die('Not allowed.');
+    if (!owns_listing('car_listings', $id) && !is_admin()) render_status_page(403, 'Access denied', 'You can only edit your own car listings.', ['Go to dashboard' => 'dashboard.php', 'Browse cars' => 'cars.php']);
     $stmt = db()->prepare('SELECT * FROM car_listings WHERE id = ?');
     $stmt->execute([$id]);
     $car = $stmt->fetch() ?: [];

@@ -43,11 +43,37 @@ function render_header(string $title, string $description = '', array $meta = []
         <?php endif; ?>
     </nav>
 </header>
+<div class="offline-banner" data-offline-banner role="alert" hidden>You appear to be offline. You can keep browsing loaded pages, but submitting forms may fail until your connection returns.</div>
 <main>
 <?php foreach (flashes() as $item): ?>
     <div class="flash <?= e($item['type']) ?>" role="alert"><span><?= e($item['message']) ?></span><button type="button" data-dismiss-alert aria-label="Dismiss alert">×</button></div>
 <?php endforeach; ?>
     <?php
+}
+
+function render_status_page(int $code, string $title, string $message, array $actions = []): never
+{
+    http_response_code($code);
+    render_header($title, $message);
+    ?>
+    <section class="status-page">
+        <div class="status-card">
+            <span><?= (int)$code ?></span>
+            <h1><?= e($title) ?></h1>
+            <p><?= e($message) ?></p>
+            <div class="status-actions">
+                <?php if ($actions): ?>
+                    <?php foreach ($actions as $label => $href): ?><a class="button <?= $label === array_key_first($actions) ? '' : 'ghost' ?>" href="<?= e($href) ?>"><?= e((string)$label) ?></a><?php endforeach; ?>
+                <?php else: ?>
+                    <a class="button" href="index.php">Go home</a>
+                    <a class="button ghost" href="cars.php">Browse cars</a>
+                <?php endif; ?>
+            </div>
+        </div>
+    </section>
+    <?php
+    render_footer();
+    exit;
 }
 
 function render_footer(): void

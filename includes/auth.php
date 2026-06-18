@@ -37,8 +37,7 @@ function require_admin(): void
 {
     require_login();
     if (!is_admin()) {
-        http_response_code(403);
-        die('Admin access required.');
+        render_status_page(403, 'Access denied', 'You need an admin account to view this page.', ['Go to dashboard' => '../dashboard.php', 'Browse cars' => '../cars.php']);
     }
 }
 

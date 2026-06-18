@@ -67,8 +67,7 @@ function verify_csrf(): void
 {
     $token = $_POST['csrf_token'] ?? '';
     if (!$token || !hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-        http_response_code(419);
-        die('Invalid security token.');
+        render_status_page(419, 'Session expired', 'Your security token expired or was invalid. Please go back and try again.', ['Go back' => $_SERVER['HTTP_REFERER'] ?? 'index.php', 'Go home' => 'index.php']);
     }
 }
 
@@ -238,8 +237,7 @@ function require_rate_limit(string $key, int $seconds = 60): void
     $now = time();
     $last = $_SESSION['rate'][$key] ?? 0;
     if ($last && ($now - (int)$last) < $seconds) {
-        http_response_code(429);
-        die('Please wait before trying again.');
+        render_status_page(429, 'Slow down', 'Please wait a moment before trying again.', ['Go back' => $_SERVER['HTTP_REFERER'] ?? 'index.php']);
     }
     $_SESSION['rate'][$key] = $now;
 }

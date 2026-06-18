@@ -9,11 +9,11 @@ if (is_post()) {
     $id = (int)($_POST['id'] ?? 0);
     $action = $_POST['action'] ?? '';
     $table = $type === 'wanted' ? 'wanted_posts' : 'car_listings';
-    if (!owns_listing($table, $id)) die('Not allowed.');
+    if (!owns_listing($table, $id)) render_status_page(403, 'Access denied', 'You can only manage posts that belong to your account.', ['Go to dashboard' => 'dashboard.php']);
     $stmt = db()->prepare("SELECT * FROM {$table} WHERE id = ? LIMIT 1");
     $stmt->execute([$id]);
     $post = $stmt->fetch();
-    if (!$post) die('Post not found.');
+    if (!$post) render_status_page(404, 'Post not found', 'That post could not be found or may have been removed.', ['Go to dashboard' => 'dashboard.php']);
     if ($action === 'delete') {
         $stmt = db()->prepare("DELETE FROM {$table} WHERE id = ?");
         $stmt->execute([$id]);

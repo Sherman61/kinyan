@@ -3,6 +3,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('[data-nav]')?.classList.toggle('open');
   });
 
+  const offlineBanner = document.querySelector('[data-offline-banner]');
+  const syncOfflineState = () => {
+    if (!offlineBanner) return;
+    offlineBanner.hidden = navigator.onLine;
+  };
+  window.addEventListener('online', syncOfflineState);
+  window.addEventListener('offline', syncOfflineState);
+  syncOfflineState();
+
   document.querySelectorAll('[data-dismiss-alert]').forEach((button) => {
     button.addEventListener('click', () => button.closest('.flash')?.remove());
   });

@@ -8,7 +8,7 @@ if (is_post()) { verify_csrf(); require_app_rate_limit('report_car_' . $id, 5, 1
 $stmt = db()->prepare('SELECT * FROM car_listings WHERE id = ?');
 $stmt->execute([$id]);
 $car = $stmt->fetch();
-if (!$car || ($car['status'] !== 'active' && !owns_listing('car_listings', $id) && !is_admin())) { http_response_code(404); die('Listing not found.'); }
+if (!$car || ($car['status'] !== 'active' && !owns_listing('car_listings', $id) && !is_admin())) render_status_page(404, 'Listing not found', 'This car listing is unavailable, pending approval, or no longer active.', ['Browse cars' => 'cars.php', 'Go home' => 'index.php']);
 increment_view('car_listings', $id);
 $images = car_images($id);
 $primary = $images[0]['image_path'] ?? 'assets/css/car-placeholder.svg';

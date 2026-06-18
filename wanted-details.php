@@ -7,7 +7,7 @@ if (is_post()) { verify_csrf(); require_app_rate_limit('report_wanted_' . $id, 5
 $stmt = db()->prepare('SELECT * FROM wanted_posts WHERE id = ?');
 $stmt->execute([$id]);
 $post = $stmt->fetch();
-if (!$post || ($post['status'] !== 'active' && !owns_listing('wanted_posts', $id) && !is_admin())) { http_response_code(404); die('Post not found.'); }
+if (!$post || ($post['status'] !== 'active' && !owns_listing('wanted_posts', $id) && !is_admin())) render_status_page(404, 'Wanted post not found', 'This wanted post is unavailable, pending approval, or no longer active.', ['Browse wanted posts' => 'wanted.php', 'Go home' => 'index.php']);
 increment_view('wanted_posts', $id);
 render_header($post['title'], $post['description']);
 ?>

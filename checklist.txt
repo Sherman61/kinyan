@@ -1,0 +1,42 @@
+Kinyan UI/UX State Checklist
+
+[ ] Idle
+    Page/form is ready before the user acts.
+
+[ ] Loading
+    Data or page sections are being fetched.
+
+[x] Success
+    Flash success alerts are shown after completed actions and can be dismissed.
+
+[x] Empty
+    Empty states exist for cars, wanted posts, image library, and similar empty screens.
+
+[x] No Results
+    Cars and wanted searches show a no-results message when filters return nothing.
+
+[x] Submitting
+    Forms show processing states. Car photo uploads show staged progress and disable submit.
+
+[ ] Refreshing
+    Existing content stays visible while refreshed data is loading.
+
+[x] Error
+    Flash error alerts are styled, dismissible, and use role="alert".
+
+[x] Offline
+    Browser online/offline detection shows a site banner when the user is offline.
+
+[x] Access Denied
+    Permission and unavailable-record cases render styled status pages instead of plain die() text.
+
+[ ] First-Time Use
+    Empty states exist, but first-time guidance can still be improved further.
+
+[ ] Maintenance / Unavailable
+    Database unavailable still needs a styled maintenance page.
+
+Implemented in this pass:
+- Styled access denied/not found/session-expired/slow-down status pages.
+- Offline banner that appears when the browser reports no connection.
+- Dismissible alerts were already present and remain part of the completed Error/Success states.

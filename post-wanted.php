@@ -8,7 +8,7 @@ $id = (int)($_GET['id'] ?? 0);
 $editing = $id > 0;
 $post = [];
 if ($editing) {
-    if (!owns_listing('wanted_posts', $id) && !is_admin()) die('Not allowed.');
+    if (!owns_listing('wanted_posts', $id) && !is_admin()) render_status_page(403, 'Access denied', 'You can only edit your own wanted posts.', ['Go to dashboard' => 'dashboard.php', 'Browse wanted posts' => 'wanted.php']);
     $stmt = db()->prepare('SELECT * FROM wanted_posts WHERE id = ?');
     $stmt->execute([$id]);
     $post = $stmt->fetch() ?: [];
