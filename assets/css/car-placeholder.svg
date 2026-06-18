@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-label="Car placeholder">
+  <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#e8f3f4"/><stop offset="1" stop-color="#dbe8f5"/></linearGradient></defs>
+  <rect width="1200" height="760" fill="url(#g)"/>
+  <path d="M242 455h54l50-115c18-42 54-68 100-68h304c47 0 83 26 104 68l56 115h48c28 0 50 22 50 50v84H192v-84c0-28 22-50 50-50z" fill="#0f172a" opacity=".9"/>
+  <path d="M394 345h388l40 92H354l40-92z" fill="#38bdf8" opacity=".35"/>
+  <circle cx="360" cy="598" r="62" fill="#111827"/><circle cx="840" cy="598" r="62" fill="#111827"/>
+  <circle cx="360" cy="598" r="28" fill="#94a3b8"/><circle cx="840" cy="598" r="28" fill="#94a3b8"/>
+</svg>
