@@ -10,12 +10,59 @@ document.addEventListener('DOMContentLoaded', () => {
   const grid = document.querySelector('[data-results-grid]');
   document.querySelector('[data-grid-toggle]')?.addEventListener('click', () => grid?.classList.toggle('list-mode'));
 
-  document.querySelectorAll('[data-thumb]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const main = document.querySelector('[data-gallery-main]');
-      if (main) main.src = button.dataset.thumb;
+  const galleryMain = document.querySelector('[data-gallery-main]');
+  const lightbox = document.querySelector('[data-lightbox]');
+  const lightboxImage = document.querySelector('[data-lightbox-image]');
+  const thumbs = [...document.querySelectorAll('[data-thumb]')];
+  let activeImageIndex = 0;
+  const setGalleryImage = (index) => {
+    if (!galleryMain || thumbs.length === 0) return;
+    activeImageIndex = (index + thumbs.length) % thumbs.length;
+    const src = thumbs[activeImageIndex].dataset.thumb;
+    galleryMain.src = src;
+    if (lightboxImage) lightboxImage.src = src;
+    thumbs.forEach((button, i) => {
+      button.classList.toggle('active', i === activeImageIndex);
+      if (i === activeImageIndex) button.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     });
+  };
+  thumbs.forEach((button, index) => {
+    button.addEventListener('click', () => setGalleryImage(index));
   });
+  document.querySelectorAll('[data-gallery-prev]').forEach((button) => {
+    button.addEventListener('click', () => setGalleryImage(activeImageIndex - 1));
+  });
+  document.querySelectorAll('[data-gallery-next]').forEach((button) => {
+    button.addEventListener('click', () => setGalleryImage(activeImageIndex + 1));
+  });
+  galleryMain?.addEventListener('click', () => {
+    if (!lightbox || !lightboxImage) return;
+    lightboxImage.src = galleryMain.src;
+    lightbox.hidden = false;
+    document.body.classList.add('lightbox-open');
+  });
+  document.querySelector('[data-lightbox-close]')?.addEventListener('click', () => {
+    if (!lightbox) return;
+    lightbox.hidden = true;
+    document.body.classList.remove('lightbox-open');
+  });
+  lightbox?.addEventListener('click', (event) => {
+    if (event.target === lightbox) {
+      lightbox.hidden = true;
+      document.body.classList.remove('lightbox-open');
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (lightbox?.hidden === false && event.key === 'Escape') {
+      lightbox.hidden = true;
+      document.body.classList.remove('lightbox-open');
+    } else if (galleryMain && event.key === 'ArrowLeft') {
+      setGalleryImage(activeImageIndex - 1);
+    } else if (galleryMain && event.key === 'ArrowRight') {
+      setGalleryImage(activeImageIndex + 1);
+    }
+  });
+  setGalleryImage(0);
 
   const saved = new Set(JSON.parse(localStorage.getItem('kinyan_saved_cars') || '[]'));
   document.querySelectorAll('[data-save-car]').forEach((button) => {
@@ -65,6 +112,80 @@ document.addEventListener('DOMContentLoaded', () => {
       const message = submit?.dataset.confirm || form.dataset.confirm;
       if (message && !window.confirm(message)) {
         event.preventDefault();
+        return;
+      }
+      if (form.matches('[data-upload-progress]')) {
+        event.preventDefault();
+        if (form.dataset.submitting === 'true') return;
+        form.dataset.submitting = 'true';
+
+        const files = form.querySelector('input[type="file"]')?.files?.length || 0;
+        const status = form.querySelector('[data-upload-status]');
+        const stage = form.querySelector('[data-upload-stage]');
+        const percentText = form.querySelector('[data-upload-percent]');
+        const bar = form.querySelector('[data-upload-bar]');
+        const detail = form.querySelector('[data-upload-detail]');
+        const setProgress = (percent, title, text) => {
+          const value = Math.max(0, Math.min(100, Math.round(percent)));
+          if (stage) stage.textContent = title;
+          if (percentText) percentText.textContent = `${value}%`;
+          if (bar) bar.style.width = `${value}%`;
+          if (detail) detail.textContent = text;
+        };
+
+        status.hidden = false;
+        setProgress(4, 'Checking listing details', files ? `Preparing ${files} photo${files === 1 ? '' : 's'} for upload.` : 'Submitting your listing without new photos.');
+        if (submit && submit.classList.contains('button')) {
+          submit.dataset.originalText = submit.textContent;
+          submit.textContent = files ? 'Uploading...' : 'Submitting...';
+          submit.setAttribute('aria-busy', 'true');
+          submit.disabled = true;
+        }
+
+        const xhr = new XMLHttpRequest();
+        let processingTimer = null;
+        xhr.open(form.method || 'POST', form.action || location.href, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.upload.addEventListener('progress', (progress) => {
+          if (!progress.lengthComputable) {
+            setProgress(20, 'Uploading photos', 'Uploading your photos. Larger files can take a little longer.');
+            return;
+          }
+          const uploaded = progress.loaded / progress.total;
+          const percent = 8 + uploaded * 77;
+          setProgress(percent, 'Uploading photos', `${files || 'Your'} photo${files === 1 ? '' : 's'} ${Math.round(uploaded * 100)}% uploaded.`);
+        });
+        xhr.upload.addEventListener('load', () => {
+          let value = 86;
+          setProgress(value, files > 1 ? 'Optimizing photos' : 'Saving listing', files ? 'The server is checking and optimizing each photo now.' : 'Saving your listing now.');
+          processingTimer = window.setInterval(() => {
+            value = Math.min(97, value + (files > 4 ? 1 : 2));
+            setProgress(value, files > 1 ? 'Optimizing photos' : 'Saving listing', files > 4 ? 'Several photos are being re-encoded. Keep this page open.' : 'Almost done. Keep this page open.');
+          }, 900);
+        });
+        xhr.addEventListener('load', () => {
+          if (processingTimer) window.clearInterval(processingTimer);
+          setProgress(100, 'Done', 'Redirecting you now.');
+          try {
+            const response = JSON.parse(xhr.responseText);
+            window.location.href = response.redirect || xhr.responseURL || 'dashboard.php';
+          } catch (error) {
+            document.open();
+            document.write(xhr.responseText);
+            document.close();
+          }
+        });
+        xhr.addEventListener('error', () => {
+          if (processingTimer) window.clearInterval(processingTimer);
+          form.dataset.submitting = 'false';
+          if (submit && submit.classList.contains('button')) {
+            submit.textContent = submit.dataset.originalText || 'Submit listing';
+            submit.removeAttribute('aria-busy');
+            submit.disabled = false;
+          }
+          setProgress(100, 'Upload interrupted', 'The upload did not finish. Please check your connection and try again.');
+        });
+        xhr.send(new FormData(form));
         return;
       }
       if (submit && submit.classList.contains('button')) {

@@ -56,19 +56,21 @@ if (is_post()) {
                 $nextStatus = edited_listing_status((string)$car['status'], 'car_listings');
                 $stmt = db()->prepare('UPDATE car_listings SET title=?, make=?, model=?, trim=?, year=?, mileage=?, price=?, vin=?, exterior_color=?, interior_color=?, body_type=?, transmission=?, drivetrain=?, fuel_type=?, engine=?, condition_status=?, accident_history=?, clean_title=?, lease_takeover=?, lease_months_left=?, lease_monthly_payment=?, lease_down_payment=?, lease_mileage_allowance=?, lease_miles_used=?, lease_transfer_fee=?, lease_company=?, lease_end_date=?, description=?, city=?, state=?, zip=?, seller_name=?, seller_phone=?, seller_email=?, preferred_contact_method=?, status=? WHERE id=?');
                 $stmt->execute([...array_values($data), $nextStatus, $id]);
-                upload_car_images($id, $_FILES['images'] ?? []);
+                $imageResult = upload_car_images($id, $_FILES['images'] ?? []);
                 db()->commit();
                 flash('success', $nextStatus === 'pending' ? 'Listing changes were submitted for approval.' : 'Listing updated.');
-                redirect('dashboard.php');
+                flash_image_upload_result($imageResult);
+                finish_listing_save('dashboard.php');
             } else {
                 $status = new_listing_status();
                 $stmt = db()->prepare('INSERT INTO car_listings (user_id,title,make,model,trim,year,mileage,price,vin,exterior_color,interior_color,body_type,transmission,drivetrain,fuel_type,engine,condition_status,accident_history,clean_title,lease_takeover,lease_months_left,lease_monthly_payment,lease_down_payment,lease_mileage_allowance,lease_miles_used,lease_transfer_fee,lease_company,lease_end_date,description,city,state,zip,seller_name,seller_phone,seller_email,preferred_contact_method,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
                 $stmt->execute([current_user()['id'], ...array_values($data), $status]);
                 $newId = (int)db()->lastInsertId();
-                upload_car_images($newId, $_FILES['images'] ?? []);
+                $imageResult = upload_car_images($newId, $_FILES['images'] ?? []);
                 db()->commit();
                 flash('success', $status === 'active' ? 'Your car is live.' : 'Your car was submitted for approval.');
-                redirect('dashboard.php');
+                flash_image_upload_result($imageResult);
+                finish_listing_save('dashboard.php');
             }
         } catch (RuntimeException $e) {
             if (db()->inTransaction()) {
@@ -86,12 +88,42 @@ if (is_post()) {
         }
     }
 }
+
+function flash_image_upload_result(array $result): void
+{
+    $saved = (int)($result['saved'] ?? 0);
+    $failed = (int)($result['failed'] ?? 0);
+    $skipped = (int)($result['skipped'] ?? 0);
+    if ($saved > 0) {
+        flash('success', $saved . ' photo' . ($saved === 1 ? '' : 's') . ' uploaded.');
+    }
+    if ($failed > 0 || $skipped > 0) {
+        $parts = [];
+        if ($failed > 0) {
+            $parts[] = $failed . ' failed';
+        }
+        if ($skipped > 0) {
+            $parts[] = $skipped . ' skipped because each listing can have up to 10 photos';
+        }
+        flash('info', 'Some photos were not added: ' . implode(', ', $parts) . '.');
+    }
+}
+
+function finish_listing_save(string $path): never
+{
+    if (strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest') {
+        header('Content-Type: application/json');
+        echo json_encode(['redirect' => $path]);
+        exit;
+    }
+    redirect($path);
+}
 render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for sale on Kinyan.');
 ?>
 <section class="form-shell">
     <h1><?= $editing ? 'Edit car listing' : 'Post your car' ?></h1>
     <p class="form-intro">Use the regular sale price for cars being sold. For a lease takeover, check the lease box and fill in the monthly payment, takeover amount, and lease end date.</p>
-    <form method="post" enctype="multipart/form-data" class="form-grid">
+    <form method="post" enctype="multipart/form-data" class="form-grid" data-upload-progress>
         <?= csrf_field() ?>
         <div class="form-section full"><h2>Vehicle basics</h2><p>These fields appear in search results and on the listing page.</p></div>
         <label class="full">Listing title<input required name="title" value="<?= e($car['title'] ?? '') ?>" placeholder="2019 Toyota Sienna XLE - clean title, 82k miles"></label>
@@ -139,6 +171,11 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
         <label>Preferred contact<select name="preferred_contact_method"><?php foreach ($contactMethods as $v): ?><option <?= selected($car['preferred_contact_method'] ?? 'Any', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
         <label class="full">Photos<input type="file" name="images[]" multiple accept=".jpg,.jpeg,.jfif,.png,.webp,image/jpeg,image/png,image/webp"><small>Upload up to 10 JPG, PNG, or WEBP photos. Use clear exterior, interior, odometer, and damage photos when possible.</small></label>
         <button class="button full" type="submit" <?= $editing ? 'data-confirm="Save these listing changes?"' : '' ?>><?= $editing ? 'Save changes' : 'Submit listing' ?></button>
+        <div class="upload-progress full" data-upload-status hidden>
+            <div class="upload-progress-top"><strong data-upload-stage>Preparing listing</strong><span data-upload-percent>0%</span></div>
+            <div class="upload-progress-bar"><span data-upload-bar></span></div>
+            <p data-upload-detail>Keep this page open while your photos upload.</p>
+        </div>
     </form>
 </section>
 <?php render_footer(); ?>

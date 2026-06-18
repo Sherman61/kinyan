@@ -232,10 +232,10 @@ function validate_choice(string $value, array $allowed, string $fallback = ''): 
     return in_array($value, $allowed, true) ? $value : $fallback;
 }
 
-function upload_car_images(int $listingId, array $files): void
+function upload_car_images(int $listingId, array $files): array
 {
     if (empty($files['name'][0])) {
-        return;
+        return ['saved' => 0, 'failed' => 0, 'skipped' => 0];
     }
     if (!is_dir(UPLOAD_DIR)) {
         mkdir(UPLOAD_DIR, 0755, true);
@@ -262,20 +262,24 @@ function upload_car_images(int $listingId, array $files): void
         IMAGETYPE_WEBP => 'webp',
     ];
     $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $failed = 0;
 
     foreach ($files['name'] as $i => $name) {
         if (($files['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
             continue;
         }
         if (($files['error'][$i] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('One image failed to upload. Try a smaller image or a different file.');
+            $failed++;
+            continue;
         }
         if (($files['size'][$i] ?? 0) > 5 * 1024 * 1024) {
-            throw new RuntimeException('Images must be 5MB or smaller.');
+            $failed++;
+            continue;
         }
         $tmp = $files['tmp_name'][$i];
         if (!is_uploaded_file($tmp)) {
-            throw new RuntimeException('One image could not be verified.');
+            $failed++;
+            continue;
         }
         $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
         $mime = $finfo->file($tmp);
@@ -288,35 +292,48 @@ function upload_car_images(int $listingId, array $files): void
             !$imageInfo ||
             ($imageInfo[2] ?? null) !== $imageType
         ) {
-            throw new RuntimeException('Only JPG, JPEG, JFIF, PNG, and WEBP images are allowed.');
+            $failed++;
+            continue;
         }
         $width = (int)($imageInfo[0] ?? 0);
         $height = (int)($imageInfo[1] ?? 0);
         if ($width < 1 || $height < 1 || $width > 12000 || $height > 12000 || ($width * $height) > 50000000) {
-            throw new RuntimeException('Images are too large. Upload a smaller image.');
+            $failed++;
+            continue;
         }
         $validUploads[] = ['tmp' => $tmp, 'ext' => $extByType[$imageType], 'format' => $formatByType[$imageType]];
-    }
-    if (count($validUploads) > 10) {
-        throw new RuntimeException('Upload up to 10 images at a time.');
     }
 
     $countStmt = db()->prepare('SELECT COUNT(*) FROM car_images WHERE car_listing_id = ?');
     $countStmt->execute([$listingId]);
     $sort = (int)$countStmt->fetchColumn();
-    if (($sort + count($validUploads)) > 10) {
-        throw new RuntimeException('Each listing can have up to 10 images.');
+    $availableSlots = max(0, 10 - $sort);
+    $skipped = max(0, count($validUploads) - $availableSlots);
+    if ($availableSlots <= 0) {
+        return ['saved' => 0, 'failed' => $failed, 'skipped' => count($validUploads)];
     }
+    $validUploads = array_slice($validUploads, 0, $availableSlots);
+    $saved = 0;
 
     foreach ($validUploads as $upload) {
         $safe = bin2hex(random_bytes(16)) . '.' . $upload['ext'];
         $dest = UPLOAD_DIR . '/' . $safe;
         if (!sanitize_uploaded_image($upload['tmp'], $dest, $upload['format'])) {
-            throw new RuntimeException('Could not save uploaded image.');
+            $failed++;
+            continue;
         }
-        $stmt = db()->prepare('INSERT INTO car_images (car_listing_id, image_path, sort_order) VALUES (?, ?, ?)');
-        $stmt->execute([$listingId, UPLOAD_URL . '/' . $safe, $sort++]);
+        try {
+            $stmt = db()->prepare('INSERT INTO car_images (car_listing_id, image_path, sort_order) VALUES (?, ?, ?)');
+            $stmt->execute([$listingId, UPLOAD_URL . '/' . $safe, $sort++]);
+            $saved++;
+        } catch (PDOException $e) {
+            @unlink($dest);
+            error_log($e->getMessage());
+            $failed++;
+        }
     }
+
+    return ['saved' => $saved, 'failed' => $failed, 'skipped' => $skipped];
 }
 
 function sanitize_uploaded_image(string $source, string $dest, string $format): bool

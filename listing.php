@@ -22,8 +22,12 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$pri
 <section class="details-layout">
     <div>
         <div class="gallery">
-            <img class="gallery-main" src="<?= e($primary) ?>" alt="<?= e($car['title']) ?>" data-gallery-main>
-            <div class="thumbs"><?php foreach ($images as $img): ?><button data-thumb="<?= e($img['image_path']) ?>"><img src="<?= e($img['image_path']) ?>" alt="<?= e($car['title']) ?>"></button><?php endforeach; ?></div>
+            <div class="gallery-frame">
+                <button class="gallery-nav prev" type="button" data-gallery-prev aria-label="Previous photo">‹</button>
+                <img class="gallery-main" src="<?= e($primary) ?>" alt="<?= e($car['title']) ?>" data-gallery-main data-gallery-open>
+                <button class="gallery-nav next" type="button" data-gallery-next aria-label="Next photo">›</button>
+            </div>
+            <div class="thumbs" data-gallery-thumbs><?php foreach ($images as $img): ?><button data-thumb="<?= e($img['image_path']) ?>"><img src="<?= e($img['image_path']) ?>" alt="<?= e($car['title']) ?>"></button><?php endforeach; ?></div>
         </div>
         <section class="details-card"><h2>Description</h2><p><?= nl2br(e($car['description'])) ?></p></section>
         <section class="details-card"><h2>Vehicle details</h2><div class="spec-grid">
@@ -55,4 +59,10 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$pri
     </aside>
 </section>
 <section class="section"><div class="section-heading"><h2>Similar cars</h2></div><div class="grid cards-grid"><?php foreach ($sim->fetchAll() as $item) render_car_card($item); ?></div></section>
+<div class="image-lightbox" data-lightbox hidden>
+    <button class="lightbox-close" type="button" data-lightbox-close aria-label="Close enlarged photo">×</button>
+    <button class="lightbox-nav prev" type="button" data-gallery-prev aria-label="Previous photo">‹</button>
+    <img src="<?= e($primary) ?>" alt="<?= e($car['title']) ?>" data-lightbox-image>
+    <button class="lightbox-nav next" type="button" data-gallery-next aria-label="Next photo">›</button>
+</div>
 <?php render_footer(); ?>
