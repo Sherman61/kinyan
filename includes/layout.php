@@ -45,7 +45,7 @@ function render_header(string $title, string $description = '', array $meta = []
 </header>
 <main>
 <?php foreach (flashes() as $item): ?>
-    <div class="flash <?= e($item['type']) ?>"><?= e($item['message']) ?></div>
+    <div class="flash <?= e($item['type']) ?>" role="alert"><span><?= e($item['message']) ?></span><button type="button" data-dismiss-alert aria-label="Dismiss alert">×</button></div>
 <?php endforeach; ?>
     <?php
 }

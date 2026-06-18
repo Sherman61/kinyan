@@ -3,8 +3,8 @@ require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/layout.php';
 require_once __DIR__ . '/includes/cards.php';
 $id = (int)($_GET['id'] ?? 0);
-if (isset($_GET['contact'])) { require_rate_limit('contact_car_' . $id, 5); save_contact_click('car', $id, $_GET['contact']); exit('ok'); }
-if (is_post()) { verify_csrf(); report_target('car', $id, trim($_POST['reason'] ?? 'Concern'), trim($_POST['details'] ?? '')); flash('success', 'Report submitted.'); redirect('listing.php?id=' . $id); }
+if (isset($_GET['contact'])) { require_app_rate_limit('contact_car_' . $id, 30, 60); save_contact_click('car', $id, $_GET['contact']); exit('ok'); }
+if (is_post()) { verify_csrf(); require_app_rate_limit('report_car_' . $id, 5, 15 * 60); report_target('car', $id, trim($_POST['reason'] ?? 'Concern'), trim($_POST['details'] ?? '')); flash('success', 'Report submitted.'); redirect('listing.php?id=' . $id); }
 $stmt = db()->prepare('SELECT * FROM car_listings WHERE id = ?');
 $stmt->execute([$id]);
 $car = $stmt->fetch();

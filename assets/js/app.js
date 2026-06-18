@@ -3,6 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('[data-nav]')?.classList.toggle('open');
   });
 
+  document.querySelectorAll('[data-dismiss-alert]').forEach((button) => {
+    button.addEventListener('click', () => button.closest('.flash')?.remove());
+  });
+
   document.querySelectorAll('[data-filter-toggle]').forEach((button) => {
     button.addEventListener('click', () => document.querySelector('[data-filters], .filters')?.classList.toggle('open'));
   });

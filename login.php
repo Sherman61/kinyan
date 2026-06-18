@@ -8,7 +8,7 @@ if (($_GET['action'] ?? '') === 'logout') {
 }
 if (is_post()) {
     verify_csrf();
-    require_rate_limit('login', 2);
+    require_app_rate_limit('login', 8, 15 * 60);
     $email = strtolower(trim($_POST['email'] ?? ''));
     $stmt = db()->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
     $stmt->execute([$email]);
@@ -25,8 +25,8 @@ render_header('Log In', 'Log in to your Kinyan account.');
     <form method="post" class="auth-card">
         <?= csrf_field() ?>
         <h1>Log in</h1>
-        <label>Email<input required type="email" name="email"></label>
-        <label>Password<input required type="password" name="password"></label>
+        <label>Email<input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
+        <label>Password<input required type="password" name="password" autocomplete="current-password" placeholder="Your password"></label>
         <button class="button full-width" type="submit">Log in</button>
         <p>New to Kinyan? <a href="register.php">Create an account</a></p>
     </form>

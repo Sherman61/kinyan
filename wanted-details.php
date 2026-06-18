@@ -2,8 +2,8 @@
 require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/layout.php';
 $id = (int)($_GET['id'] ?? 0);
-if (isset($_GET['contact'])) { require_rate_limit('contact_wanted_' . $id, 5); save_contact_click('wanted', $id, $_GET['contact']); exit('ok'); }
-if (is_post()) { verify_csrf(); report_target('wanted', $id, trim($_POST['reason'] ?? 'Concern'), trim($_POST['details'] ?? '')); flash('success', 'Report submitted.'); redirect('wanted-details.php?id=' . $id); }
+if (isset($_GET['contact'])) { require_app_rate_limit('contact_wanted_' . $id, 30, 60); save_contact_click('wanted', $id, $_GET['contact']); exit('ok'); }
+if (is_post()) { verify_csrf(); require_app_rate_limit('report_wanted_' . $id, 5, 15 * 60); report_target('wanted', $id, trim($_POST['reason'] ?? 'Concern'), trim($_POST['details'] ?? '')); flash('success', 'Report submitted.'); redirect('wanted-details.php?id=' . $id); }
 $stmt = db()->prepare('SELECT * FROM wanted_posts WHERE id = ?');
 $stmt->execute([$id]);
 $post = $stmt->fetch();
@@ -18,7 +18,7 @@ render_header($post['title'], $post['description']);
         <p class="lead"><?= nl2br(e($post['description'])) ?></p>
         <h2>Desired vehicle specs</h2>
         <div class="spec-grid">
-            <?php foreach (['Preferred make'=>'preferred_make','Preferred model'=>'preferred_model','Min year'=>'min_year','Max year'=>'max_year','Max mileage'=>'max_mileage','Min budget'=>'min_budget','Max budget'=>'max_budget','Body type'=>'preferred_body_type','Transmission'=>'preferred_transmission','Fuel type'=>'preferred_fuel_type','Clean title required'=>'must_have_clean_title','Location'=>'location','Travel distance'=>'travel_distance'] as $label=>$key): ?>
+            <?php foreach (['Preferred make'=>'preferred_make','Preferred model'=>'preferred_model','Min year'=>'min_year','Max year'=>'max_year','Max mileage'=>'max_mileage','Min budget'=>'min_budget','Max budget'=>'max_budget','Body type'=>'preferred_body_type','Transmission'=>'preferred_transmission','Fuel type'=>'preferred_fuel_type','Clean title required'=>'must_have_clean_title','Location'=>'location','Distance willing to travel (miles)'=>'travel_distance'] as $label=>$key): ?>
             <div><span><?= e($label) ?></span><strong><?= $key === 'must_have_clean_title' ? (!empty($post[$key]) ? 'Yes' : 'No') : e((string)($post[$key] ?? 'Any')) ?></strong></div>
             <?php endforeach; ?>
         </div>

@@ -139,6 +139,17 @@ CREATE TABLE IF NOT EXISTS contact_clicks (
   INDEX idx_contact_target (target_type, target_id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS rate_limits (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  rate_key VARCHAR(191) NOT NULL,
+  hits INT UNSIGNED NOT NULL DEFAULT 1,
+  reset_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_rate_key (rate_key),
+  INDEX idx_reset_at (reset_at)
+) ENGINE=InnoDB;
+
 INSERT INTO site_settings (setting_key, setting_value) VALUES
 ('auto_approve_listings', '0'),
 ('site_name', 'Kinyan'),

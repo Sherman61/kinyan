@@ -4,6 +4,7 @@ require_once __DIR__ . '/includes/layout.php';
 
 if (is_post()) {
     verify_csrf();
+    require_app_rate_limit('register', 5, 60 * 60);
     $name = trim($_POST['name'] ?? '');
     $email = strtolower(trim($_POST['email'] ?? ''));
     $phone = trim($_POST['phone'] ?? '');
@@ -28,10 +29,10 @@ render_header('Register', 'Create a Kinyan account.');
     <form method="post" class="auth-card">
         <?= csrf_field() ?>
         <h1>Create account</h1>
-        <label>Name<input required name="name"></label>
-        <label>Email<input required type="email" name="email"></label>
-        <label>Phone<input name="phone"></label>
-        <label>Password<input required minlength="8" type="password" name="password"></label>
+        <label>Name<input required name="name" autocomplete="name" placeholder="Your full name"></label>
+        <label>Email<input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
+        <label>Phone<input name="phone" inputmode="tel" autocomplete="tel" placeholder="732-555-1234"></label>
+        <label>Password<input required minlength="8" type="password" name="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
         <button class="button full-width" type="submit">Register</button>
         <p>Already have an account? <a href="login.php">Log in</a></p>
     </form>

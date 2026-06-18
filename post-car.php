@@ -20,6 +20,7 @@ if ($editing) {
 }
 if (is_post()) {
     verify_csrf();
+    require_app_rate_limit($editing ? 'edit_car' : 'post_car', 12, 60 * 60);
     $data = [
         'title'=>trim($_POST['title'] ?? ''),'make'=>trim($_POST['make'] ?? ''),'model'=>trim($_POST['model'] ?? ''),'trim'=>trim($_POST['trim'] ?? ''),
         'year'=>(int)($_POST['year'] ?? 0),'mileage'=>(int)($_POST['mileage'] ?? 0),'price'=>(float)($_POST['price'] ?? 0),'vin'=>trim($_POST['vin'] ?? ''),

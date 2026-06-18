@@ -244,6 +244,33 @@ function require_rate_limit(string $key, int $seconds = 60): void
     $_SESSION['rate'][$key] = $now;
 }
 
+function require_app_rate_limit(string $action, int $limit, int $windowSeconds): void
+{
+    $identity = current_user()['id'] ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $key = hash('sha256', $action . '|' . $identity);
+    $resetAt = date('Y-m-d H:i:s', time() + $windowSeconds);
+
+    db()->prepare('DELETE FROM rate_limits WHERE reset_at < NOW()')->execute();
+    $stmt = db()->prepare('SELECT hits, reset_at FROM rate_limits WHERE rate_key = ? LIMIT 1');
+    $stmt->execute([$key]);
+    $row = $stmt->fetch();
+
+    if (!$row) {
+        db()->prepare('INSERT INTO rate_limits (rate_key, hits, reset_at) VALUES (?, 1, ?)')->execute([$key, $resetAt]);
+        return;
+    }
+
+    if ((int)$row['hits'] >= $limit) {
+        $retryAt = strtotime((string)$row['reset_at']) ?: (time() + $windowSeconds);
+        $wait = max(1, (int)ceil(($retryAt - time()) / 60));
+        http_response_code(429);
+        flash('error', 'Too many attempts. Please wait about ' . $wait . ' minute' . ($wait === 1 ? '' : 's') . ' and try again.');
+        redirect($_SERVER['HTTP_REFERER'] ?? 'index.php');
+    }
+
+    db()->prepare('UPDATE rate_limits SET hits = hits + 1 WHERE rate_key = ?')->execute([$key]);
+}
+
 function validate_choice(string $value, array $allowed, string $fallback = ''): string
 {
     return in_array($value, $allowed, true) ? $value : $fallback;
@@ -408,7 +435,6 @@ function save_contact_click(string $targetType, int $targetId, string $method): 
 
 function report_target(string $targetType, int $targetId, string $reason, string $details): void
 {
-    require_rate_limit('report_' . $targetType . '_' . $targetId, 45);
     $stmt = db()->prepare('INSERT INTO reports (user_id, target_type, target_id, reason, details, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
     $stmt->execute([current_user()['id'] ?? null, $targetType, $targetId, $reason, $details]);
 }
