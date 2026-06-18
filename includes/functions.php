@@ -241,8 +241,18 @@ function upload_car_images(int $listingId, array $files): void
         mkdir(UPLOAD_DIR, 0755, true);
     }
 
+    $validUploads = [];
     $allowedExt = ['jpg', 'jpeg', 'jfif', 'png', 'webp'];
-    $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
+    $allowedMimeByType = [
+        IMAGETYPE_JPEG => 'image/jpeg',
+        IMAGETYPE_PNG => 'image/png',
+        IMAGETYPE_WEBP => 'image/webp',
+    ];
+    $extByType = [
+        IMAGETYPE_JPEG => 'jpg',
+        IMAGETYPE_PNG => 'png',
+        IMAGETYPE_WEBP => 'webp',
+    ];
     $finfo = new finfo(FILEINFO_MIME_TYPE);
 
     foreach ($files['name'] as $i => $name) {
@@ -256,24 +266,44 @@ function upload_car_images(int $listingId, array $files): void
             throw new RuntimeException('Images must be 5MB or smaller.');
         }
         $tmp = $files['tmp_name'][$i];
+        if (!is_uploaded_file($tmp)) {
+            throw new RuntimeException('One image could not be verified.');
+        }
         $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
         $mime = $finfo->file($tmp);
-        if (!in_array($ext, $allowedExt, true) || !in_array($mime, $allowedMime, true)) {
+        $imageInfo = @getimagesize($tmp);
+        $imageType = @exif_imagetype($tmp);
+        if (
+            !in_array($ext, $allowedExt, true) ||
+            !isset($allowedMimeByType[$imageType]) ||
+            $mime !== $allowedMimeByType[$imageType] ||
+            !$imageInfo ||
+            ($imageInfo[2] ?? null) !== $imageType
+        ) {
             throw new RuntimeException('Only JPG, JPEG, JFIF, PNG, and WEBP images are allowed.');
         }
+        $width = (int)($imageInfo[0] ?? 0);
+        $height = (int)($imageInfo[1] ?? 0);
+        if ($width < 1 || $height < 1 || $width > 12000 || $height > 12000 || ($width * $height) > 50000000) {
+            throw new RuntimeException('Images are too large. Upload a smaller image.');
+        }
+        $validUploads[] = ['tmp' => $tmp, 'ext' => $extByType[$imageType]];
+    }
+    if (count($validUploads) > 12) {
+        throw new RuntimeException('Upload up to 12 images at a time.');
     }
 
     $countStmt = db()->prepare('SELECT COUNT(*) FROM car_images WHERE car_listing_id = ?');
     $countStmt->execute([$listingId]);
     $sort = (int)$countStmt->fetchColumn();
+    if (($sort + count($validUploads)) > 20) {
+        throw new RuntimeException('Each listing can have up to 20 images.');
+    }
 
-    foreach ($files['name'] as $i => $name) {
-        $ext = strtolower(pathinfo((string)$name, PATHINFO_EXTENSION));
-        $tmp = $files['tmp_name'][$i];
-        $safeExt = in_array($ext, ['jpeg', 'jfif'], true) ? 'jpg' : $ext;
-        $safe = bin2hex(random_bytes(16)) . '.' . $safeExt;
+    foreach ($validUploads as $upload) {
+        $safe = bin2hex(random_bytes(16)) . '.' . $upload['ext'];
         $dest = UPLOAD_DIR . '/' . $safe;
-        if (!move_uploaded_file($tmp, $dest)) {
+        if (!move_uploaded_file($upload['tmp'], $dest)) {
             throw new RuntimeException('Could not save uploaded image.');
         }
         $stmt = db()->prepare('INSERT INTO car_images (car_listing_id, image_path, sort_order) VALUES (?, ?, ?)');
