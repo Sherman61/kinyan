@@ -39,7 +39,7 @@ render_header('Admin Listings', 'Manage Kinyan car listings.');
 ?>
 <section class="dashboard">
     <div class="page-title"><h1>Car listings</h1><p>Approve, reject, feature, edit, delete, or mark sold.</p></div>
-    <nav class="admin-tabs"><a href="index.php">Admin</a><a href="listings.php?status=pending">Pending</a><a href="listings.php?status=active">Active</a><a href="listings.php">All</a></nav>
+    <nav class="admin-tabs"><a href="index.php">Admin</a><a href="reports.php">Reports</a><a href="listings.php?status=pending">Pending</a><a href="listings.php?status=active">Active</a><a href="listings.php">All</a></nav>
     <div class="table-wrap"><table><thead><tr><th>Listing</th><th>Status</th><th>Featured</th><th>User</th><th>Views</th><th>Contact clicks</th><th>Actions</th></tr></thead><tbody>
     <?php foreach ($cars as $car): $stats = $carStats[(int)$car['id']] ?? ['calls'=>0,'texts'=>0,'emails'=>0,'copy_links'=>0,'shares'=>0,'total'=>0]; ?><tr>
         <td><strong><?= e($car['title']) ?></strong><br><?= e($car['year'] . ' ' . $car['make'] . ' ' . $car['model']) ?></td>

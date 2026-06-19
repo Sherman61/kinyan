@@ -105,6 +105,7 @@ function render_footer(): void
         <a href="<?= $prefix ?>wanted.php">Buyer requests</a>
         <a href="<?= $prefix ?>post-car.php">Post a car</a>
         <a href="<?= $prefix ?>post-wanted.php">Post wanted</a>
+        <a href="<?= $prefix ?>tos.html">Terms</a>
     </div>
 </footer>
 <script src="<?= $prefix ?>assets/js/app.js"></script>

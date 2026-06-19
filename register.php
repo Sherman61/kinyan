@@ -9,8 +9,11 @@ if (is_post()) {
     $email = strtolower(trim($_POST['email'] ?? ''));
     $phone = trim($_POST['phone'] ?? '');
     $password = $_POST['password'] ?? '';
+    $acceptedTerms = isset($_POST['accept_terms']);
     if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8) {
         flash('error', 'Enter a name, valid email, and password with at least 8 characters.');
+    } elseif (!$acceptedTerms) {
+        flash('error', 'You must agree to the Terms of Service to create an account.');
     } else {
         try {
             $stmt = db()->prepare('INSERT INTO users (name, email, phone, password_hash, role) VALUES (?, ?, ?, ?, ?)');
@@ -33,6 +36,7 @@ render_header('Register', 'Create a Kinyan account.');
         <label>Email<input required type="email" name="email" autocomplete="email" placeholder="you@example.com"></label>
         <label>Phone<input name="phone" inputmode="tel" autocomplete="tel" placeholder="732-555-1234"></label>
         <label>Password<input required minlength="8" type="password" name="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
+        <label class="check"><input required type="checkbox" name="accept_terms" value="1"> I agree to the <a href="tos.html" target="_blank" rel="noopener">Terms of Service</a></label>
         <button class="button full-width" type="submit">Register</button>
         <p>Already have an account? <a href="login.php">Log in</a></p>
     </form>
