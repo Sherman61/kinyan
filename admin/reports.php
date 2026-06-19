@@ -27,7 +27,7 @@ render_header('Admin Reports', 'Review reported cars and wanted posts.');
 ?>
 <section class="dashboard">
     <div class="page-title"><h1>Reports</h1><p>Review reports submitted by users and open the reported listing or wanted post.</p></div>
-    <nav class="admin-tabs"><a href="index.php">Admin</a><a href="listings.php">Listings</a><a href="wanted.php">Wanted</a><a href="reports.php">Reports</a><a href="users.php">Users</a></nav>
+    <?php render_admin_nav('reports'); ?>
     <div class="table-wrap"><table><thead><tr><th>Reported item</th><th>Reason</th><th>Details</th><th>Reporter</th><th>Date</th><th>Actions</th></tr></thead><tbody>
     <?php foreach ($reports as $report):
         $isCar = $report['target_type'] === 'car';

@@ -57,7 +57,8 @@ render_header('Application Errors', 'Review and resolve application errors.');
 ?>
 <section class="dashboard error-log-page">
     <div class="page-title"><h1>Application errors</h1><p>Review what users saw, the technical cause, sanitized request data, and stack traces.</p></div>
-    <nav class="admin-tabs"><a href="index.php">Admin</a><a href="errors.php?status=open">Open</a><a href="errors.php?status=resolved">Resolved</a><a href="errors.php">All errors</a><a href="reports.php">User reports</a></nav>
+    <?php render_admin_nav('errors'); ?>
+    <nav class="admin-subnav" aria-label="Error filters"><a class="<?= $status === 'open' ? 'active' : '' ?>" href="errors.php?status=open">Open</a><a class="<?= $status === 'resolved' ? 'active' : '' ?>" href="errors.php?status=resolved">Resolved</a><a class="<?= $status === '' ? 'active' : '' ?>" href="errors.php">All errors</a></nav>
     <div class="stat-grid error-stat-grid">
         <div class="stat"><span>Open</span><strong><?= (int)($summary['open_count'] ?? 0) ?></strong></div>
         <div class="stat"><span>Today</span><strong><?= (int)($summary['today_count'] ?? 0) ?></strong></div>

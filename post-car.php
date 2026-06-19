@@ -216,7 +216,7 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
     <form method="post" enctype="multipart/form-data" class="form-grid" data-upload-progress>
         <?= csrf_field() ?>
         <div class="form-section full"><h2>Vehicle basics</h2><p>These fields appear in search results and on the listing page.</p></div>
-        <label class="full">Listing title<input required name="title" value="<?= e($car['title'] ?? '') ?>" placeholder="2019 Toyota Sienna XLE - clean title, 82k miles"></label>
+        <label class="full listing-title-field"><span>Listing headline</span><input required maxlength="180" name="title" value="<?= e($car['title'] ?? '') ?>" placeholder="Example: 2019 Toyota Sienna XLE with clean title" data-listing-title><small><span data-title-count><?= mb_strlen((string)($car['title'] ?? '')) ?></span>/180 characters. Include the year, make, model, and one useful detail buyers will notice.</small></label>
         <label>Make<input required name="make" value="<?= e($car['make'] ?? '') ?>" placeholder="Toyota"></label>
         <label>Model<input required name="model" value="<?= e($car['model'] ?? '') ?>" placeholder="Sienna"></label>
         <label>Trim<input name="trim" value="<?= e($car['trim'] ?? '') ?>" placeholder="XLE, Limited, EX-L"></label>

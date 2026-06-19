@@ -12,8 +12,9 @@ if (is_post()) {
 }
 render_header('Admin Settings', 'Manage Kinyan settings.');
 ?>
-<section class="form-shell">
-    <h1>Site settings</h1>
+<section class="form-shell admin-settings-page">
+    <div class="page-title"><h1>Site settings</h1><p>Control marketplace defaults and support contact information.</p></div>
+    <?php render_admin_nav('settings'); ?>
     <form method="post" class="form-grid">
         <?= csrf_field() ?>
         <label>Site name<input name="site_name" value="<?= e(setting('site_name', 'Kinyan')) ?>"></label>

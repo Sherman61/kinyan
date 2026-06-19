@@ -34,7 +34,8 @@ $status = $_GET['status'] ?? '';
 $sql = 'SELECT c.*, u.email user_email FROM car_listings c JOIN users u ON u.id = c.user_id';
 $params = [];
 if ($status) { $sql .= ' WHERE c.status = ?'; $params[] = $status; }
-$sql .= ' ORDER BY c.created_at DESC LIMIT 200';
+$sort = ($_GET['sort'] ?? '') === 'views' ? 'views' : '';
+$sql .= $sort === 'views' ? ' ORDER BY c.views DESC, c.created_at DESC LIMIT 200' : ' ORDER BY c.created_at DESC LIMIT 200';
 $stmt = db()->prepare($sql);
 $stmt->execute($params);
 $cars = $stmt->fetchAll();
@@ -43,7 +44,8 @@ render_header('Admin Listings', 'Manage Kinyan car listings.');
 ?>
 <section class="dashboard">
     <div class="page-title"><h1>Car listings</h1><p>Approve, reject, feature, edit, delete, or mark sold.</p></div>
-    <nav class="admin-tabs"><a href="index.php">Admin</a><a href="reports.php">Reports</a><a href="listings.php?status=pending">Pending</a><a href="listings.php?status=active">Active</a><a href="listings.php">All</a></nav>
+    <?php render_admin_nav('listings'); ?>
+    <nav class="admin-subnav" aria-label="Car listing filters"><a class="<?= $status === '' && $sort === '' ? 'active' : '' ?>" href="listings.php">All</a><a class="<?= $status === 'pending' ? 'active' : '' ?>" href="listings.php?status=pending">Pending</a><a class="<?= $status === 'active' ? 'active' : '' ?>" href="listings.php?status=active">Active</a><a class="<?= $status === 'sold' ? 'active' : '' ?>" href="listings.php?status=sold">Sold</a><a class="<?= $sort === 'views' ? 'active' : '' ?>" href="listings.php?sort=views">Most viewed</a></nav>
     <div class="table-wrap"><table><thead><tr><th>Listing</th><th>Status</th><th>Featured</th><th>User</th><th>Views</th><th>Contact clicks</th><th>Actions</th></tr></thead><tbody>
     <?php foreach ($cars as $car): $stats = $carStats[(int)$car['id']] ?? ['calls'=>0,'texts'=>0,'emails'=>0,'copy_links'=>0,'shares'=>0,'total'=>0]; ?><tr>
         <td><strong><?= e($car['title']) ?></strong><br><?= e($car['year'] . ' ' . $car['make'] . ' ' . $car['model']) ?></td>

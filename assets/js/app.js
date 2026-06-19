@@ -38,6 +38,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.setTimeout(() => alert.remove(), 7200);
   });
 
+  const listingTitle = document.querySelector('[data-listing-title]');
+  const titleCount = document.querySelector('[data-title-count]');
+  const updateTitleCount = () => {
+    if (listingTitle && titleCount) titleCount.textContent = String(listingTitle.value.length);
+  };
+  listingTitle?.addEventListener('input', updateTitleCount);
+  updateTitleCount();
+
   const confirmModal = document.querySelector('[data-confirm-modal]');
   const confirmMessage = confirmModal?.querySelector('[data-confirm-message]');
   const confirmAccept = confirmModal?.querySelector('[data-confirm-accept]');

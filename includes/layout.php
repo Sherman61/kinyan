@@ -103,6 +103,39 @@ function render_status_page(int $code, string $title, string $message, array $ac
     exit;
 }
 
+function render_admin_nav(string $active = ''): void
+{
+    $current = $active ?: basename($_SERVER['SCRIPT_NAME'] ?? '', '.php');
+    $counts = ['pending_cars' => 0, 'pending_wanted' => 0, 'reports' => 0, 'errors' => 0];
+    try {
+        $counts = db()->query("SELECT
+            (SELECT COUNT(*) FROM car_listings WHERE status = 'pending') pending_cars,
+            (SELECT COUNT(*) FROM wanted_posts WHERE status = 'pending') pending_wanted,
+            (SELECT COUNT(*) FROM reports) reports,
+            (SELECT COUNT(*) FROM app_errors WHERE status = 'open') errors")->fetch() ?: $counts;
+    } catch (Throwable) {
+    }
+    $items = [
+        'index' => ['Overview', 'index.php', 0],
+        'listings' => ['Cars', 'listings.php', (int)$counts['pending_cars']],
+        'wanted' => ['Wanted', 'wanted.php', (int)$counts['pending_wanted']],
+        'reports' => ['Reports', 'reports.php', (int)$counts['reports']],
+        'errors' => ['Errors', 'errors.php', (int)$counts['errors']],
+        'users' => ['Users', 'users.php', 0],
+        'categories' => ['Makes', 'categories.php', 0],
+        'settings' => ['Settings', 'settings.php', 0],
+    ];
+    ?>
+    <nav class="admin-primary-nav" aria-label="Admin navigation">
+        <?php foreach ($items as $key => [$label, $href, $count]): ?>
+            <a class="<?= $current === $key ? 'active' : '' ?>" href="<?= e($href) ?>" <?= $current === $key ? 'aria-current="page"' : '' ?>>
+                <span><?= e($label) ?></span><?php if ($count > 0): ?><strong><?= $count ?></strong><?php endif; ?>
+            </a>
+        <?php endforeach; ?>
+    </nav>
+    <?php
+}
+
 function render_footer(): void
 {
     $prefix = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/admin/') ? '../' : '';
