@@ -493,37 +493,52 @@ document.addEventListener('DOMContentLoaded', () => {
     const vinInput = document.querySelector('[data-vin-check-input]');
     const status = document.querySelector('[data-vin-check-status]');
     const results = document.querySelector('[data-vin-check-results]');
+    const historyNote = document.querySelector('[data-vin-history-note]');
     const vin = (vinInput?.value || '').trim().toUpperCase();
     if (!vinInput || !status || !results) return;
     vinCheckButton.disabled = true;
     status.textContent = 'Checking VIN...';
     status.className = 'vin-status';
     results.hidden = true;
+    if (historyNote) historyNote.hidden = true;
     results.replaceChildren();
+    if (historyNote) historyNote.replaceChildren();
     try {
       const data = await fetchVinDetails(vin);
-      const fields = [
-        ['Year', data.year],
-        ['Make', data.make],
-        ['Model', data.model],
-        ['Trim', data.trim],
-        ['Body type', data.body_type],
-        ['Fuel type', data.fuel_type],
-        ['Transmission', data.transmission],
-        ['Drivetrain', data.drivetrain],
-        ['Engine', data.engine],
-      ];
-      fields.forEach(([label, value]) => {
-        if (!value) return;
-        const item = document.createElement('div');
-        const name = document.createElement('span');
-        const detail = document.createElement('strong');
-        name.textContent = label;
-        detail.textContent = value;
-        item.append(name, detail);
-        results.append(item);
+      (data.details || []).forEach((group) => {
+        const section = document.createElement('section');
+        section.className = 'vin-result-section';
+        const heading = document.createElement('h2');
+        const grid = document.createElement('div');
+        grid.className = 'spec-grid';
+        heading.textContent = group.title;
+        (group.items || []).forEach(([label, value]) => {
+          if (!value) return;
+          const item = document.createElement('div');
+          const name = document.createElement('span');
+          const detail = document.createElement('strong');
+          name.textContent = label;
+          detail.textContent = value;
+          item.append(name, detail);
+          grid.append(item);
+        });
+        if (grid.children.length) {
+          section.append(heading, grid);
+          results.append(section);
+        }
       });
+      if (!results.children.length) {
+        throw new Error('VIN decoded, but no detailed fields were returned.');
+      }
       results.hidden = false;
+      if (historyNote && data.history_note) {
+        const heading = document.createElement('h2');
+        const note = document.createElement('p');
+        heading.textContent = 'Mileage, title, and sale history';
+        note.textContent = data.history_note;
+        historyNote.append(heading, note);
+        historyNote.hidden = false;
+      }
       status.textContent = 'VIN details found. Confirm these details against the actual vehicle and title.';
       status.className = 'vin-status success';
     } catch (error) {

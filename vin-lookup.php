@@ -42,6 +42,7 @@ $engine = trim(implode(' ', array_filter([
     !empty($data['DisplacementL']) ? $data['DisplacementL'] . 'L' : '',
     $data['EngineModel'] ?? '',
 ])));
+$details = vin_detail_groups($data, $body, $fuel, $transmission, $engine);
 
 echo json_encode([
     'ok' => true,
@@ -54,7 +55,100 @@ echo json_encode([
     'transmission' => $transmission,
     'drivetrain' => $data['DriveType'] ?? '',
     'engine' => $engine,
+    'details' => $details,
+    'history_note' => 'This VIN decoder does not confirm current mileage, last-sale mileage, title brands, liens, accidents, ownership history, theft records, or open recalls. Ask the seller for records and consider a title/history report before buying.',
 ]);
+
+function vin_detail_groups(array $data, string $body, string $fuel, string $transmission, string $engine): array
+{
+    $get = fn(string $key): string => clean_vin_value($data[$key] ?? '');
+    $groups = [
+        [
+            'title' => 'Vehicle identity',
+            'items' => [
+                ['Year', $get('ModelYear')],
+                ['Make', ucwords(strtolower($get('Make')))],
+                ['Model', ucwords(strtolower($get('Model')))],
+                ['Trim', $get('Trim')],
+                ['Series', $get('Series')],
+                ['Vehicle type', $get('VehicleType')],
+                ['Body class', $get('BodyClass') ?: $body],
+                ['VIN descriptor', $get('VehicleDescriptor')],
+            ],
+        ],
+        [
+            'title' => 'Engine and drivetrain',
+            'items' => [
+                ['Engine', $engine],
+                ['Cylinders', $get('EngineNumberofCylinders')],
+                ['Displacement', $get('DisplacementL') ? $get('DisplacementL') . 'L' : ''],
+                ['Horsepower', $get('EngineHP')],
+                ['Engine manufacturer', $get('EngineManufacturer')],
+                ['Fuel type', $fuel],
+                ['Secondary fuel', $get('FuelTypeSecondary') ? normalize_fuel_type($get('FuelTypeSecondary')) : ''],
+                ['Electrification', $get('ElectrificationLevel')],
+                ['Transmission', $transmission],
+                ['Drive type', $get('DriveType')],
+                ['Turbo', $get('Turbo')],
+            ],
+        ],
+        [
+            'title' => 'Size and body',
+            'items' => [
+                ['Doors', $get('Doors')],
+                ['Seats', $get('Seats')],
+                ['Seat rows', $get('SeatRows')],
+                ['Cab type', $get('BodyCabType')],
+                ['Wheelbase', $get('WheelBaseShort') ? $get('WheelBaseShort') . ' in' : ''],
+                ['Gross weight rating', trim($get('GVWR') . ($get('GVWR_to') ? ' to ' . $get('GVWR_to') : ''))],
+                ['Trailer body type', $get('TrailerBodyType')],
+            ],
+        ],
+        [
+            'title' => 'Manufacturing',
+            'items' => [
+                ['Manufacturer', $get('Manufacturer')],
+                ['Plant city', $get('PlantCity')],
+                ['Plant state', $get('PlantState')],
+                ['Plant country', $get('PlantCountry')],
+                ['Destination market', $get('DestinationMarket')],
+            ],
+        ],
+        [
+            'title' => 'Safety and equipment decoded from VIN',
+            'items' => [
+                ['Seat belts', $get('SeatBeltsAll')],
+                ['Front airbags', $get('FrontAirBagLoc')],
+                ['Side airbags', $get('SideAirBagLoc')],
+                ['Curtain airbags', $get('CurtainAirBagLoc')],
+                ['Knee airbags', $get('KneeAirBagLoc')],
+                ['ABS', $get('ABS')],
+                ['Electronic stability control', $get('ESC')],
+                ['Traction control', $get('TractionControl')],
+                ['Backup camera', $get('BackupCamera')],
+                ['Blind spot monitoring', $get('BlindSpotMon')],
+                ['Lane keep system', $get('LaneKeepSystem')],
+                ['Forward collision warning', $get('ForwardCollisionWarning')],
+                ['Adaptive cruise control', $get('AdaptiveCruiseControl')],
+                ['TPMS', $get('TPMS')],
+            ],
+        ],
+    ];
+
+    return array_values(array_filter(array_map(function (array $group): array {
+        $group['items'] = array_values(array_filter($group['items'], fn(array $item): bool => $item[1] !== ''));
+        return $group;
+    }, $groups), fn(array $group): bool => !empty($group['items'])));
+}
+
+function clean_vin_value($value): string
+{
+    $value = trim((string)$value);
+    if ($value === '' || in_array(strtolower($value), ['not applicable', 'not available', '0'], true)) {
+        return '';
+    }
+    return $value;
+}
 
 function normalize_body_type(string $value): string
 {
