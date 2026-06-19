@@ -8,6 +8,7 @@ function render_header(string $title, string $description = '', array $meta = []
     $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
     $prefix = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/admin/') ? '../' : '';
     $user = current_user();
+    $openErrorCount = ($user['role'] ?? '') === 'admin' ? app_open_error_count() : 0;
     $metaImage = !empty($meta['image']) ? site_url((string)$meta['image']) : '';
     $metaImageAlt = (string)($meta['image_alt'] ?? $fullTitle);
     ?>
@@ -59,6 +60,9 @@ function render_header(string $title, string $description = '', array $meta = []
 <?php foreach (flashes() as $item): ?>
     <div class="flash <?= e($item['type']) ?>" role="alert" data-flash-alert><strong><?= e(ucfirst((string)$item['type'])) ?></strong><span><?= e($item['message']) ?></span><button type="button" data-dismiss-alert aria-label="Dismiss alert">×</button></div>
 <?php endforeach; ?>
+<?php if ($openErrorCount > 0): ?>
+    <div class="flash error admin-error-alert" role="alert" data-flash-alert><strong>Error alert</strong><span><?= $openErrorCount ?> unresolved application error<?= $openErrorCount === 1 ? '' : 's' ?>. <a href="<?= $prefix ?>admin/errors.php">View error log</a></span><button type="button" data-dismiss-alert aria-label="Dismiss alert">×</button></div>
+<?php endif; ?>
 <div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
 <div class="confirm-modal" data-confirm-modal hidden>
     <div class="confirm-backdrop" data-confirm-cancel></div>

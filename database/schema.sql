@@ -155,6 +155,28 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   INDEX idx_reset_at (reset_at)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS app_errors (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  severity VARCHAR(20) NOT NULL DEFAULT 'error',
+  exception_class VARCHAR(190) NULL,
+  technical_message TEXT NOT NULL,
+  user_message VARCHAR(500) NOT NULL,
+  file_path VARCHAR(500) NULL,
+  line_number INT UNSIGNED NULL,
+  request_method VARCHAR(10) NULL,
+  request_uri TEXT NULL,
+  user_id INT UNSIGNED NULL,
+  ip_address VARCHAR(64) NULL,
+  context_json LONGTEXT NULL,
+  stack_trace LONGTEXT NULL,
+  status ENUM('open','resolved') NOT NULL DEFAULT 'open',
+  resolved_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_app_errors_status_created (status, created_at),
+  INDEX idx_app_errors_created (created_at),
+  INDEX idx_app_errors_user (user_id)
+) ENGINE=InnoDB;
+
 INSERT INTO site_settings (setting_key, setting_value) VALUES
 ('auto_approve_listings', '0'),
 ('site_name', 'Kinyan'),

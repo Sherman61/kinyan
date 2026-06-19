@@ -92,6 +92,9 @@ if (is_post()) {
                 db()->rollBack();
             }
             delete_history_report_file((string)$reportResult['new']);
+            if (str_contains(strtolower($e->getMessage()), 'could not') || str_contains(strtolower($e->getMessage()), 'unavailable')) {
+                log_app_error($e, $e->getMessage(), ['listing_id' => $id ?: null], 'error');
+            }
             flash('error', $e->getMessage());
             $car = array_merge($car, $data);
         } catch (PDOException $e) {
@@ -99,8 +102,9 @@ if (is_post()) {
                 db()->rollBack();
             }
             delete_history_report_file((string)$reportResult['new']);
-            error_log($e->getMessage());
-            flash('error', 'We could not save the listing. Please check the form and try again.');
+            $userMessage = 'We could not save the listing. Please check the form and try again.';
+            $errorId = log_app_error($e, $userMessage, ['listing_id' => $id ?: null], 'error');
+            flash('error', $userMessage . ($errorId ? ' Error reference: ERR-' . $errorId . '.' : ''));
             $car = array_merge($car, $data);
         }
     }

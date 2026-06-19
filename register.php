@@ -24,7 +24,13 @@ if (is_post()) {
             login_user($user);
             redirect('dashboard.php');
         } catch (PDOException $e) {
-            flash('error', 'That email is already registered.');
+            if ((string)$e->getCode() === '23000') {
+                flash('error', 'That email is already registered.');
+            } else {
+                $message = 'We could not create your account right now. Please try again.';
+                $errorId = log_app_error($e, $message, ['registration_email' => $email], 'error');
+                flash('error', $message . ($errorId ? ' Error reference: ERR-' . $errorId . '.' : ''));
+            }
         }
     }
 }

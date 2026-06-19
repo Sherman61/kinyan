@@ -89,6 +89,120 @@ function flashes(): array
     return $items;
 }
 
+function sanitize_error_data(mixed $value, int $depth = 0): mixed
+{
+    if ($depth > 5) {
+        return '[maximum depth reached]';
+    }
+    if (is_array($value)) {
+        $clean = [];
+        $count = 0;
+        foreach ($value as $key => $item) {
+            if (++$count > 100) {
+                $clean['truncated'] = '[additional values omitted]';
+                break;
+            }
+            $name = (string)$key;
+            if (preg_match('/password|passwd|secret|token|csrf|authorization|cookie|session|tmp_name/i', $name)) {
+                $clean[$name] = '[redacted]';
+                continue;
+            }
+            $clean[$name] = sanitize_error_data($item, $depth + 1);
+        }
+        return $clean;
+    }
+    if (is_object($value)) {
+        return '[object ' . $value::class . ']';
+    }
+    if (is_resource($value)) {
+        return '[resource]';
+    }
+    if (is_string($value) && strlen($value) > 4000) {
+        return substr($value, 0, 4000) . '[truncated]';
+    }
+    return $value;
+}
+
+function app_error_request_context(): array
+{
+    $files = [];
+    foreach ($_FILES as $field => $file) {
+        $files[$field] = [
+            'name' => $file['name'] ?? null,
+            'type' => $file['type'] ?? null,
+            'size' => $file['size'] ?? null,
+            'error' => $file['error'] ?? null,
+        ];
+    }
+    return sanitize_error_data([
+        'query' => $_GET,
+        'form' => $_POST,
+        'files' => $files,
+        'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null,
+        'referer' => $_SERVER['HTTP_REFERER'] ?? null,
+    ]);
+}
+
+function append_fallback_error(array $record): void
+{
+    $line = json_encode($record, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($line !== false) {
+        @file_put_contents(APP_ERROR_FALLBACK_FILE, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+    }
+}
+
+function log_app_error(Throwable|string $error, string $userMessage = 'Something went wrong. Please try again.', array $context = [], string $severity = 'error'): ?int
+{
+    static $logging = false;
+    if ($logging) {
+        return null;
+    }
+    $logging = true;
+    $throwable = $error instanceof Throwable ? $error : null;
+    $record = [
+        'severity' => substr($severity, 0, 20),
+        'exception_class' => $throwable ? $throwable::class : null,
+        'technical_message' => $throwable ? $throwable->getMessage() : $error,
+        'user_message' => mb_substr($userMessage, 0, 500),
+        'file_path' => $throwable ? $throwable->getFile() : null,
+        'line_number' => $throwable ? $throwable->getLine() : null,
+        'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'CLI',
+        'request_uri' => $_SERVER['REQUEST_URI'] ?? ($_SERVER['SCRIPT_NAME'] ?? null),
+        'user_id' => isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null,
+        'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
+        'context_json' => json_encode(sanitize_error_data(array_merge(app_error_request_context(), $context)), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE),
+        'stack_trace' => $throwable ? $throwable->getTraceAsString() : null,
+        'created_at' => date(DATE_ATOM),
+    ];
+
+    try {
+        $stmt = db()->prepare('INSERT INTO app_errors (severity, exception_class, technical_message, user_message, file_path, line_number, request_method, request_uri, user_id, ip_address, context_json, stack_trace) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([
+            $record['severity'], $record['exception_class'], $record['technical_message'], $record['user_message'],
+            $record['file_path'], $record['line_number'], $record['request_method'], $record['request_uri'],
+            $record['user_id'], $record['ip_address'], $record['context_json'], $record['stack_trace'],
+        ]);
+        $id = (int)db()->lastInsertId();
+        $logging = false;
+        return $id;
+    } catch (Throwable $loggingError) {
+        $record['logging_failure'] = $loggingError->getMessage();
+        append_fallback_error($record);
+        error_log('Kinyan error logger failure: ' . $loggingError->getMessage() . '; original: ' . $record['technical_message']);
+        $logging = false;
+        return null;
+    }
+}
+
+function app_open_error_count(): int
+{
+    try {
+        return (int)db()->query("SELECT COUNT(*) FROM app_errors WHERE status = 'open'")->fetchColumn();
+    } catch (Throwable) {
+        return 0;
+    }
+}
+
 function selected($left, $right): string
 {
     return (string)$left === (string)$right ? 'selected' : '';
@@ -374,7 +488,7 @@ function upload_car_images(int $listingId, array $files): array
             $saved++;
         } catch (PDOException $e) {
             @unlink($dest);
-            error_log($e->getMessage());
+            log_app_error($e, 'A photo could not be attached to the listing.', ['listing_id' => $listingId], 'error');
             $failed++;
         }
     }
@@ -493,7 +607,7 @@ function sanitize_uploaded_image(string $source, string $dest): bool
         $frame->destroy();
         return $ok;
     } catch (ImagickException $e) {
-        error_log($e->getMessage());
+        log_app_error($e, 'An uploaded photo could not be processed.', [], 'error');
         return false;
     }
 }
