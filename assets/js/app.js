@@ -67,7 +67,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.querySelectorAll('[data-filter-toggle]').forEach((button) => {
-    button.addEventListener('click', () => document.querySelector('[data-filters], .filters')?.classList.toggle('open'));
+    button.addEventListener('click', () => {
+      const layout = button.closest('[data-browse-layout]') || document.querySelector('[data-browse-layout]');
+      const filters = layout?.querySelector('[data-filters], .filters') || document.querySelector('[data-filters], .filters');
+      if (layout) {
+        const shouldOpen = layout.classList.contains('filters-collapsed');
+        layout.classList.toggle('filters-collapsed', !shouldOpen);
+        layout.classList.toggle('filters-open', shouldOpen);
+        layout.querySelectorAll('[data-filter-toggle]').forEach((toggle) => {
+          toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+      }
+      filters?.classList.toggle('open');
+    });
   });
 
   const grid = document.querySelector('[data-results-grid]');
@@ -418,24 +430,30 @@ document.addEventListener('DOMContentLoaded', () => {
   leaseEndDate?.addEventListener('change', syncLeaseFields);
   syncLeaseFields();
 
+  const fetchVinDetails = async (vin) => {
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+      throw new Error('Enter a valid 17-character VIN first.');
+    }
+    const response = await fetch(`vin-lookup.php?vin=${encodeURIComponent(vin)}`, { headers: { Accept: 'application/json' } });
+    if (response.redirected && response.url.includes('login.php')) {
+      throw new Error('Please log in to use VIN check.');
+    }
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || 'VIN lookup failed.');
+    return data;
+  };
+
   const vinButton = document.querySelector('[data-vin-lookup]');
   vinButton?.addEventListener('click', async () => {
     const vinInput = document.querySelector('input[name="vin"]');
     const status = document.querySelector('[data-vin-status]');
     const vin = (vinInput?.value || '').trim().toUpperCase();
     if (!vinInput || !status) return;
-    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
-      status.textContent = 'Enter a valid 17-character VIN first.';
-      status.className = 'vin-status error';
-      return;
-    }
     vinButton.disabled = true;
     status.textContent = 'Checking VIN...';
     status.className = 'vin-status';
     try {
-      const response = await fetch(`vin-lookup.php?vin=${encodeURIComponent(vin)}`, { headers: { Accept: 'application/json' } });
-      const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.error || 'VIN lookup failed.');
+      const data = await fetchVinDetails(vin);
       const setValue = (name, value) => {
         const field = document.querySelector(`[name="${name}"]`);
         if (field && value) field.value = value;
@@ -467,6 +485,52 @@ document.addEventListener('DOMContentLoaded', () => {
       status.className = 'vin-status error';
     } finally {
       vinButton.disabled = false;
+    }
+  });
+
+  const vinCheckButton = document.querySelector('[data-vin-check]');
+  vinCheckButton?.addEventListener('click', async () => {
+    const vinInput = document.querySelector('[data-vin-check-input]');
+    const status = document.querySelector('[data-vin-check-status]');
+    const results = document.querySelector('[data-vin-check-results]');
+    const vin = (vinInput?.value || '').trim().toUpperCase();
+    if (!vinInput || !status || !results) return;
+    vinCheckButton.disabled = true;
+    status.textContent = 'Checking VIN...';
+    status.className = 'vin-status';
+    results.hidden = true;
+    results.replaceChildren();
+    try {
+      const data = await fetchVinDetails(vin);
+      const fields = [
+        ['Year', data.year],
+        ['Make', data.make],
+        ['Model', data.model],
+        ['Trim', data.trim],
+        ['Body type', data.body_type],
+        ['Fuel type', data.fuel_type],
+        ['Transmission', data.transmission],
+        ['Drivetrain', data.drivetrain],
+        ['Engine', data.engine],
+      ];
+      fields.forEach(([label, value]) => {
+        if (!value) return;
+        const item = document.createElement('div');
+        const name = document.createElement('span');
+        const detail = document.createElement('strong');
+        name.textContent = label;
+        detail.textContent = value;
+        item.append(name, detail);
+        results.append(item);
+      });
+      results.hidden = false;
+      status.textContent = 'VIN details found. Confirm these details against the actual vehicle and title.';
+      status.className = 'vin-status success';
+    } catch (error) {
+      status.textContent = error.message || 'VIN lookup failed. Please try again.';
+      status.className = 'vin-status error';
+    } finally {
+      vinCheckButton.disabled = false;
     }
   });
 });

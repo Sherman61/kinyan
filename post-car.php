@@ -27,7 +27,7 @@ if (is_post()) {
         'exterior_color'=>trim($_POST['exterior_color'] ?? ''),'interior_color'=>trim($_POST['interior_color'] ?? ''),'body_type'=>validate_choice($_POST['body_type'] ?? '', $bodyTypes, 'Other'),
         'transmission'=>validate_choice($_POST['transmission'] ?? '', $transmissions, 'Other'),'drivetrain'=>trim($_POST['drivetrain'] ?? ''),'fuel_type'=>validate_choice($_POST['fuel_type'] ?? '', $fuelTypes, 'Other'),
         'engine'=>trim($_POST['engine'] ?? ''),'condition_status'=>validate_choice($_POST['condition_status'] ?? '', $conditions, 'Good'),'accident_history'=>trim($_POST['accident_history'] ?? ''),
-        'clean_title'=>isset($_POST['clean_title']) ? 1 : 0,'lease_takeover'=>isset($_POST['lease_takeover']) ? 1 : 0,
+        'clean_title'=>isset($_POST['clean_title']) ? 1 : 0,'vehicle_history'=>validate_choice($_POST['vehicle_history'] ?? '', $vehicleHistories, 'Used'),'lease_takeover'=>isset($_POST['lease_takeover']) ? 1 : 0,
         'lease_months_left'=>null,
         'lease_monthly_payment'=>($_POST['lease_monthly_payment'] ?? '') !== '' ? (float)$_POST['lease_monthly_payment'] : null,
         'lease_down_payment'=>($_POST['lease_down_payment'] ?? '') !== '' ? (float)$_POST['lease_down_payment'] : null,
@@ -60,7 +60,7 @@ if (is_post()) {
             db()->beginTransaction();
             if ($editing) {
                 $nextStatus = edited_listing_status((string)$car['status'], 'car_listings');
-                $stmt = db()->prepare('UPDATE car_listings SET title=?, make=?, model=?, trim=?, year=?, mileage=?, price=?, vin=?, exterior_color=?, interior_color=?, body_type=?, transmission=?, drivetrain=?, fuel_type=?, engine=?, condition_status=?, accident_history=?, clean_title=?, lease_takeover=?, lease_months_left=?, lease_monthly_payment=?, lease_down_payment=?, lease_mileage_allowance=?, lease_miles_used=?, lease_transfer_fee=?, lease_company=?, lease_end_date=?, description=?, city=?, state=?, zip=?, seller_name=?, seller_phone=?, seller_email=?, preferred_contact_method=?, status=? WHERE id=?');
+                $stmt = db()->prepare('UPDATE car_listings SET title=?, make=?, model=?, trim=?, year=?, mileage=?, price=?, vin=?, exterior_color=?, interior_color=?, body_type=?, transmission=?, drivetrain=?, fuel_type=?, engine=?, condition_status=?, accident_history=?, clean_title=?, vehicle_history=?, lease_takeover=?, lease_months_left=?, lease_monthly_payment=?, lease_down_payment=?, lease_mileage_allowance=?, lease_miles_used=?, lease_transfer_fee=?, lease_company=?, lease_end_date=?, description=?, city=?, state=?, zip=?, seller_name=?, seller_phone=?, seller_email=?, preferred_contact_method=?, status=? WHERE id=?');
                 $stmt->execute([...array_values($data), $nextStatus, $id]);
                 $galleryResult = update_car_gallery($id, (int)$car['user_id']);
                 $imageResult = upload_car_images($id, $_FILES['images'] ?? []);
@@ -71,7 +71,7 @@ if (is_post()) {
                 finish_listing_save('dashboard.php');
             } else {
                 $status = new_listing_status();
-                $stmt = db()->prepare('INSERT INTO car_listings (user_id,title,make,model,trim,year,mileage,price,vin,exterior_color,interior_color,body_type,transmission,drivetrain,fuel_type,engine,condition_status,accident_history,clean_title,lease_takeover,lease_months_left,lease_monthly_payment,lease_down_payment,lease_mileage_allowance,lease_miles_used,lease_transfer_fee,lease_company,lease_end_date,description,city,state,zip,seller_name,seller_phone,seller_email,preferred_contact_method,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt = db()->prepare('INSERT INTO car_listings (user_id,title,make,model,trim,year,mileage,price,vin,exterior_color,interior_color,body_type,transmission,drivetrain,fuel_type,engine,condition_status,accident_history,clean_title,vehicle_history,lease_takeover,lease_months_left,lease_monthly_payment,lease_down_payment,lease_mileage_allowance,lease_miles_used,lease_transfer_fee,lease_company,lease_end_date,description,city,state,zip,seller_name,seller_phone,seller_email,preferred_contact_method,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
                 $stmt->execute([current_user()['id'], ...array_values($data), $status]);
                 $newId = (int)db()->lastInsertId();
                 $imageResult = upload_car_images($newId, $_FILES['images'] ?? []);
@@ -214,6 +214,7 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
         <label>Fuel type<select name="fuel_type"><?php foreach ($fuelTypes as $v): ?><option <?= selected($car['fuel_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
         <label>Engine<input name="engine" value="<?= e($car['engine'] ?? '') ?>" placeholder="3.5L V6, hybrid, electric"></label>
         <label>Condition<select name="condition_status"><?php foreach ($conditions as $v): ?><option <?= selected($car['condition_status'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
+        <label>New or used<select name="vehicle_history"><?php foreach ($vehicleHistories as $v): ?><option <?= selected($car['vehicle_history'] ?? 'Used', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select><small>Choose New only for a car that has not been previously owned or titled.</small></label>
         <label>Accident history<input name="accident_history" value="<?= e($car['accident_history'] ?? '') ?>" placeholder="No accidents, minor rear bumper repair, unknown"></label>
         <label class="check"><input type="checkbox" name="clean_title" <?= checked($car['clean_title'] ?? 1) ?>> Clean title</label>
         <label class="check"><input type="checkbox" name="lease_takeover" data-lease-toggle <?= checked($car['lease_takeover'] ?? 0) ?>> This is a lease takeover, not a regular sale</label>

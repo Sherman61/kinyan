@@ -33,7 +33,7 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$pri
         </div>
         <section class="details-card"><h2>Description</h2><p><?= nl2br(e($car['description'])) ?></p></section>
         <section class="details-card"><h2>Vehicle details</h2><div class="spec-grid">
-            <?php foreach (['Year'=>'year','Make'=>'make','Model'=>'model','Trim'=>'trim','Mileage'=>'mileage','Body type'=>'body_type','Transmission'=>'transmission','Drivetrain'=>'drivetrain','Fuel'=>'fuel_type','Engine'=>'engine','Condition'=>'condition_status','Accident history'=>'accident_history','Clean title'=>'clean_title','Lease takeover'=>'lease_takeover','VIN'=>'vin'] as $label=>$key): ?>
+            <?php foreach (['Year'=>'year','Make'=>'make','Model'=>'model','Trim'=>'trim','Mileage'=>'mileage','New or used'=>'vehicle_history','Body type'=>'body_type','Transmission'=>'transmission','Drivetrain'=>'drivetrain','Fuel'=>'fuel_type','Engine'=>'engine','Condition'=>'condition_status','Accident history'=>'accident_history','Clean title'=>'clean_title','Lease takeover'=>'lease_takeover','VIN'=>'vin'] as $label=>$key): ?>
             <div><span><?= e($label) ?></span><strong><?= in_array($key, ['clean_title','lease_takeover'], true) ? (!empty($car[$key]) ? 'Yes' : 'No') : e((string)$car[$key]) ?></strong></div>
             <?php endforeach; ?>
         </div></section>

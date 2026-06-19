@@ -2,6 +2,7 @@
 $bodyTypes = ['Sedan','SUV','Minivan','Coupe','Hatchback','Pickup Truck','Wagon','Convertible','Van','Other'];
 $transmissions = ['Automatic','Manual','CVT','Other'];
 $fuelTypes = ['Gasoline','Hybrid','Plug-in Hybrid','Electric','Diesel','Other'];
+$vehicleHistories = ['Used','New'];
 $conditions = ['Excellent','Good','Fair','Needs Work'];
 $contactMethods = ['Phone','Text','Email','Any'];
 $statuses = ['pending','active','rejected','inactive','sold','expired'];

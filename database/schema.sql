@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS car_listings (
   condition_status VARCHAR(40) NOT NULL,
   accident_history VARCHAR(120) NULL,
   clean_title TINYINT(1) NOT NULL DEFAULT 0,
+  vehicle_history ENUM('Used','New') NOT NULL DEFAULT 'Used',
   lease_takeover TINYINT(1) NOT NULL DEFAULT 0,
   lease_months_left SMALLINT UNSIGNED NULL,
   lease_monthly_payment DECIMAL(10,2) NULL,
@@ -60,6 +61,7 @@ CREATE TABLE IF NOT EXISTS car_listings (
   INDEX idx_make_model (make, model),
   INDEX idx_price (price),
   INDEX idx_year (year),
+  INDEX idx_vehicle_history (vehicle_history),
   CONSTRAINT fk_cars_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 

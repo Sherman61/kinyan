@@ -7,7 +7,7 @@ require_once __DIR__ . '/includes/options.php';
 $where = ["c.status = 'active'"];
 $params = [];
 $q = trim($_GET['q'] ?? '');
-foreach (['make','model','body_type','transmission','fuel_type','condition_status','state'] as $field) {
+foreach (['make','model','body_type','transmission','fuel_type','condition_status','vehicle_history','state'] as $field) {
     if (!empty($_GET[$field])) {
         $where[] = "c.$field = ?";
         $params[] = $_GET[$field];
@@ -74,7 +74,7 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
     <h1>Cars for sale</h1>
     <p>Search active vehicle listings and contact sellers directly.</p>
 </section>
-<section class="browse-layout">
+<section class="browse-layout filters-collapsed" data-browse-layout>
     <aside class="filters" data-filters>
         <button class="filter-close" data-filter-toggle>Filters</button>
         <form method="get" class="filter-form">
@@ -89,6 +89,7 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
             <select name="body_type"><option value="">Body type</option><?php foreach ($bodyTypes as $v): ?><option <?= selected($_GET['body_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
             <select name="transmission"><option value="">Transmission</option><?php foreach ($transmissions as $v): ?><option <?= selected($_GET['transmission'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
             <select name="fuel_type"><option value="">Fuel type</option><?php foreach ($fuelTypes as $v): ?><option <?= selected($_GET['fuel_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
+            <select name="vehicle_history"><option value="">New or used</option><?php foreach ($vehicleHistories as $v): ?><option <?= selected($_GET['vehicle_history'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
             <select name="condition_status"><option value="">Condition</option><?php foreach ($conditions as $v): ?><option <?= selected($_GET['condition_status'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select>
             <select name="clean_title"><option value="">Clean title</option><option value="1" <?= selected($_GET['clean_title'] ?? '', '1') ?>>Yes</option><option value="0" <?= selected($_GET['clean_title'] ?? '', '0') ?>>No</option></select>
             <input name="state" value="<?= e($_GET['state'] ?? '') ?>" placeholder="State">
@@ -98,7 +99,7 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
     </aside>
     <div class="browse-main">
         <div class="browse-toolbar">
-            <button class="button secondary mobile-only" data-filter-toggle>Filters</button>
+            <button class="button secondary filter-toggle-button" data-filter-toggle>Filters</button>
             <span><?= count($cars) ?> cars</span>
             <form method="get">
                 <?php foreach ($_GET as $k => $v): if ($k !== 'sort'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; endforeach; ?>

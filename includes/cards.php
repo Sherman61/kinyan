@@ -11,6 +11,7 @@ function render_car_card(array $car): void
             <img src="<?= e($image ?: $fallback) ?>" alt="<?= e(trim(($car['year'] ?? '') . ' ' . ($car['make'] ?? '') . ' ' . ($car['model'] ?? ''))) ?>">
             <div class="badges">
                 <?php if (!empty($car['featured'])): ?><span class="badge gold">Featured</span><?php endif; ?>
+                <?php if (!empty($car['vehicle_history'])): ?><span class="badge"><?= e($car['vehicle_history']) ?></span><?php endif; ?>
                 <?php if (!empty($car['lease_takeover'])): ?><span class="badge teal">Lease Takeover</span><?php endif; ?>
                 <?php if (($car['status'] ?? '') !== 'active'): ?><span class="badge"><?= e(ucfirst($car['status'])) ?></span><?php endif; ?>
                 <?php if (!empty($car['clean_title'])): ?><span class="badge green">Clean Title</span><?php endif; ?>
