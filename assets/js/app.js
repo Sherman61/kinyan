@@ -210,6 +210,15 @@ document.addEventListener('DOMContentLoaded', () => {
         xhr.send(new FormData(form));
         return;
       }
+      const browseMain = form.closest('.browse-layout')?.querySelector('.browse-main');
+      if (browseMain) {
+        const results = browseMain.querySelector('[data-results-grid], .stack');
+        if (results) {
+          const count = results.classList.contains('stack') ? 4 : 8;
+          results.innerHTML = Array.from({ length: count }, () => '<article class="skeleton-card"><div></div><span></span><span></span><span></span></article>').join('');
+          results.classList.add('is-loading');
+        }
+      }
       if (submit && submit.classList.contains('button')) {
         submit.dataset.originalText = submit.textContent;
         submit.textContent = 'Working...';
@@ -262,4 +271,56 @@ document.addEventListener('DOMContentLoaded', () => {
   leaseToggle?.addEventListener('change', syncLeaseFields);
   leaseEndDate?.addEventListener('change', syncLeaseFields);
   syncLeaseFields();
+
+  const vinButton = document.querySelector('[data-vin-lookup]');
+  vinButton?.addEventListener('click', async () => {
+    const vinInput = document.querySelector('input[name="vin"]');
+    const status = document.querySelector('[data-vin-status]');
+    const vin = (vinInput?.value || '').trim().toUpperCase();
+    if (!vinInput || !status) return;
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+      status.textContent = 'Enter a valid 17-character VIN first.';
+      status.className = 'vin-status error';
+      return;
+    }
+    vinButton.disabled = true;
+    status.textContent = 'Checking VIN...';
+    status.className = 'vin-status';
+    try {
+      const response = await fetch(`vin-lookup.php?vin=${encodeURIComponent(vin)}`, { headers: { Accept: 'application/json' } });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || 'VIN lookup failed.');
+      const setValue = (name, value) => {
+        const field = document.querySelector(`[name="${name}"]`);
+        if (field && value) field.value = value;
+      };
+      const setSelect = (name, value) => {
+        const field = document.querySelector(`select[name="${name}"]`);
+        if (!field || !value) return;
+        const normalized = value.toLowerCase();
+        const option = [...field.options].find((item) => item.value.toLowerCase() === normalized || normalized.includes(item.value.toLowerCase()));
+        if (option) field.value = option.value;
+      };
+      setValue('year', data.year);
+      setValue('make', data.make);
+      setValue('model', data.model);
+      setValue('trim', data.trim);
+      setValue('drivetrain', data.drivetrain);
+      setValue('engine', data.engine);
+      setSelect('body_type', data.body_type);
+      setSelect('fuel_type', data.fuel_type);
+      setSelect('transmission', data.transmission);
+      const title = document.querySelector('[name="title"]');
+      if (title && !title.value.trim()) {
+        title.value = [data.year, data.make, data.model, data.trim].filter(Boolean).join(' ');
+      }
+      status.textContent = 'VIN details added. Please review and edit anything that needs correction.';
+      status.className = 'vin-status success';
+    } catch (error) {
+      status.textContent = error.message || 'VIN lookup failed. You can still fill the fields manually.';
+      status.className = 'vin-status error';
+    } finally {
+      vinButton.disabled = false;
+    }
+  });
 });

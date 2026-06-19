@@ -262,6 +262,11 @@ function require_app_rate_limit(string $action, int $limit, int $windowSeconds):
         $retryAt = strtotime((string)$row['reset_at']) ?: (time() + $windowSeconds);
         $wait = max(1, (int)ceil(($retryAt - time()) / 60));
         http_response_code(429);
+        if (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') || strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest') {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => 'Too many attempts. Please wait about ' . $wait . ' minute' . ($wait === 1 ? '' : 's') . ' and try again.']);
+            exit;
+        }
         flash('error', 'Too many attempts. Please wait about ' . $wait . ' minute' . ($wait === 1 ? '' : 's') . ' and try again.');
         redirect($_SERVER['HTTP_REFERER'] ?? 'index.php');
     }

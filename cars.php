@@ -102,7 +102,7 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
             <span><?= count($cars) ?> cars</span>
             <form method="get">
                 <?php foreach ($_GET as $k => $v): if ($k !== 'sort'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; endforeach; ?>
-                <select name="sort" onchange="this.form.submit()">
+                <select name="sort" onchange="this.form.requestSubmit()">
                     <option value="newest" <?= selected($_GET['sort'] ?? '', 'newest') ?>>Newest</option>
                     <option value="oldest" <?= selected($_GET['sort'] ?? '', 'oldest') ?>>Oldest</option>
                     <option value="price_asc" <?= selected($_GET['sort'] ?? '', 'price_asc') ?>>Price low to high</option>

@@ -3,8 +3,8 @@ Kinyan UI/UX State Checklist
 [ ] Idle
     Page/form is ready before the user acts.
 
-[ ] Loading
-    Data or page sections are being fetched.
+[x] Loading
+    Browse/filter submissions show skeleton placeholders while the next results page loads.
 
 [x] Success
     Flash success alerts are shown after completed actions and can be dismissed.
@@ -40,3 +40,7 @@ Implemented in this pass:
 - Styled access denied/not found/session-expired/slow-down status pages.
 - Offline banner that appears when the browser reports no connection.
 - Dismissible alerts were already present and remain part of the completed Error/Success states.
+
+Implemented after that:
+- Skeleton placeholders for browse/filter result refreshes.
+- Optional VIN checker on the car form that populates vehicle fields while leaving them editable.

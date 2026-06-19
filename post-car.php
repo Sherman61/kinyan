@@ -201,7 +201,11 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
         <label>Year<input required type="number" min="1900" max="<?= (int)date('Y') + 1 ?>" name="year" value="<?= e($car['year'] ?? '') ?>" placeholder="<?= (int)date('Y') - 4 ?>"></label>
         <label>Mileage<input required type="number" min="0" inputmode="numeric" name="mileage" value="<?= e($car['mileage'] ?? '') ?>" placeholder="82000"></label>
         <label data-price-field><span data-price-label>Asking price</span><input required type="number" min="0" step="1" inputmode="numeric" name="price" value="<?= e($car['price'] ?? '') ?>" placeholder="28500"><small>Required for regular sale listings. Do not include commas or a dollar sign.</small></label>
-        <label>VIN optional<input name="vin" value="<?= e($car['vin'] ?? '') ?>" placeholder="17-character VIN if you want to include it"></label>
+        <div class="vin-tools full">
+            <label>VIN optional<input name="vin" maxlength="17" value="<?= e($car['vin'] ?? '') ?>" placeholder="17-character VIN"></label>
+            <button class="button secondary" type="button" data-vin-lookup>Check VIN</button>
+            <small class="vin-status" data-vin-status>Optional: use VIN lookup to fill year, make, model, body, fuel, and engine details, then review/edit them.</small>
+        </div>
         <label>Exterior color<input name="exterior_color" value="<?= e($car['exterior_color'] ?? '') ?>" placeholder="White"></label>
         <label>Interior color<input name="interior_color" value="<?= e($car['interior_color'] ?? '') ?>" placeholder="Gray leather"></label>
         <label>Body type<select name="body_type"><?php foreach ($bodyTypes as $v): ?><option <?= selected($car['body_type'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
