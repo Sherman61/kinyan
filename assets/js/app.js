@@ -12,8 +12,58 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('offline', syncOfflineState);
   syncOfflineState();
 
+  const toastRegion = document.querySelector('[data-toast-region]');
+  const showToast = (message, type = 'info') => {
+    if (!toastRegion || !message) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    const text = document.createElement('span');
+    text.textContent = message;
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.setAttribute('aria-label', 'Dismiss message');
+    dismiss.textContent = '×';
+    toast.append(text, dismiss);
+    toastRegion.append(toast);
+    const close = () => toast.remove();
+    dismiss.addEventListener('click', close);
+    window.setTimeout(close, type === 'error' ? 5200 : 3600);
+  };
+
   document.querySelectorAll('[data-dismiss-alert]').forEach((button) => {
     button.addEventListener('click', () => button.closest('.flash')?.remove());
+  });
+  document.querySelectorAll('[data-flash-alert]').forEach((alert) => {
+    window.setTimeout(() => alert.remove(), 7200);
+  });
+
+  const confirmModal = document.querySelector('[data-confirm-modal]');
+  const confirmMessage = confirmModal?.querySelector('[data-confirm-message]');
+  const confirmAccept = confirmModal?.querySelector('[data-confirm-accept]');
+  const confirmCancelButtons = confirmModal ? [...confirmModal.querySelectorAll('[data-confirm-cancel]')] : [];
+  let pendingConfirm = null;
+  const askConfirm = (message) => new Promise((resolve) => {
+    if (!confirmModal || !confirmMessage || !confirmAccept) {
+      resolve(true);
+      return;
+    }
+    confirmMessage.textContent = message || 'Are you sure?';
+    confirmModal.hidden = false;
+    confirmAccept.focus();
+    pendingConfirm = resolve;
+  });
+  const closeConfirm = (value) => {
+    if (!pendingConfirm || !confirmModal) return;
+    confirmModal.hidden = true;
+    const resolve = pendingConfirm;
+    pendingConfirm = null;
+    resolve(value);
+  };
+  confirmAccept?.addEventListener('click', () => closeConfirm(true));
+  confirmCancelButtons.forEach((button) => button.addEventListener('click', () => closeConfirm(false)));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && confirmModal?.hidden === false) closeConfirm(false);
   });
 
   document.querySelectorAll('[data-filter-toggle]').forEach((button) => {
@@ -166,19 +216,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelector('[data-copy-link]')?.addEventListener('click', async (event) => {
     trackListingAction(event.currentTarget.dataset.trackContact);
-    await navigator.clipboard.writeText(location.href);
+    try {
+      await navigator.clipboard.writeText(location.href);
+      showToast('Copied to clipboard.', 'success');
+    } catch {
+      showToast('Failed to copy link. Please try again.', 'error');
+    }
   });
   document.querySelector('[data-share]')?.addEventListener('click', async (event) => {
     trackListingAction(event.currentTarget.dataset.trackContact);
     const text = event.currentTarget.dataset.shareText || document.querySelector('meta[name="description"]')?.content || '';
-    if (navigator.share) await navigator.share({ title: document.title, text, url: location.href });
-    else await navigator.clipboard.writeText(location.href);
+    try {
+      if (navigator.share) await navigator.share({ title: document.title, text, url: location.href });
+      else await navigator.clipboard.writeText(location.href);
+      showToast(navigator.share ? 'Share opened.' : 'Share link copied to clipboard.', 'success');
+    } catch {
+      showToast('Failed to open share. Please try again.', 'error');
+    }
   });
 
   document.querySelectorAll('[data-track-contact]').forEach((link) => {
     if (link.matches('[data-copy-link], [data-share]')) return;
     link.addEventListener('click', () => {
       trackListingAction(link.dataset.trackContact);
+      let opened = false;
+      const markOpened = () => { opened = true; };
+      window.addEventListener('blur', markOpened, { once: true });
+      document.addEventListener('visibilitychange', markOpened, { once: true });
+      window.setTimeout(() => {
+        window.removeEventListener('blur', markOpened);
+        document.removeEventListener('visibilitychange', markOpened);
+        if (!opened && document.visibilityState === 'visible') {
+          showToast('Failed to open. Please try again.', 'error');
+        }
+      }, 1400);
     });
   });
 
@@ -186,10 +257,17 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', (event) => {
       const submit = event.submitter || form.querySelector('button[type="submit"], button:not([type])');
       const message = submit?.dataset.confirm || form.dataset.confirm;
-      if (message && !window.confirm(message)) {
+      if (message && form.dataset.confirmed !== 'true') {
         event.preventDefault();
+        askConfirm(message).then((confirmed) => {
+          if (!confirmed) return;
+          form.dataset.confirmed = 'true';
+          if (submit) form.requestSubmit(submit);
+          else form.requestSubmit();
+        });
         return;
       }
+      delete form.dataset.confirmed;
       if (form.matches('[data-upload-progress]')) {
         event.preventDefault();
         if (form.dataset.submitting === 'true') return;
@@ -283,7 +361,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('a[data-confirm]').forEach((link) => {
     link.addEventListener('click', (event) => {
-      if (!window.confirm(link.dataset.confirm)) event.preventDefault();
+      event.preventDefault();
+      askConfirm(link.dataset.confirm).then((confirmed) => {
+        if (confirmed) window.location.href = link.href;
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-confirm-check]').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      if (!input.checked) return;
+      event.preventDefault();
+      input.checked = false;
+      askConfirm(input.dataset.confirmCheck).then((confirmed) => {
+        input.checked = confirmed;
+      });
     });
   });
 

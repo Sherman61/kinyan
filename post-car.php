@@ -250,7 +250,7 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
                 <img src="<?= e($img['image_path']) ?>" alt="<?= e($img['image_title'] ?: $car['title']) ?>">
                 <label>Title<input name="image_titles[<?= (int)$img['id'] ?>]" value="<?= e($img['image_title'] ?? '') ?>" placeholder="Front exterior, dashboard, odometer"></label>
                 <label>Display position<input type="number" min="1" name="image_sort[<?= (int)$img['id'] ?>]" value="<?= (int)($img['sort_order'] ?? $index) + 1 ?>"></label>
-                <label class="check"><input type="checkbox" name="delete_images[]" value="<?= (int)$img['id'] ?>"> Remove from this listing</label>
+                <label class="check remove-photo-check"><input type="checkbox" name="delete_images[]" value="<?= (int)$img['id'] ?>" data-confirm-check="Delete this photo from this listing?"> Delete photo from listing</label>
             </div>
             <?php endforeach; ?>
         </div>

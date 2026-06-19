@@ -47,8 +47,20 @@ function render_header(string $title, string $description = '', array $meta = []
 <div class="offline-banner" data-offline-banner role="alert" hidden>You appear to be offline. You can keep browsing loaded pages, but submitting forms may fail until your connection returns.</div>
 <main>
 <?php foreach (flashes() as $item): ?>
-    <div class="flash <?= e($item['type']) ?>" role="alert"><span><?= e($item['message']) ?></span><button type="button" data-dismiss-alert aria-label="Dismiss alert">×</button></div>
+    <div class="flash <?= e($item['type']) ?>" role="alert" data-flash-alert><strong><?= e(ucfirst((string)$item['type'])) ?></strong><span><?= e($item['message']) ?></span><button type="button" data-dismiss-alert aria-label="Dismiss alert">×</button></div>
 <?php endforeach; ?>
+<div class="toast-region" data-toast-region aria-live="polite" aria-atomic="true"></div>
+<div class="confirm-modal" data-confirm-modal hidden>
+    <div class="confirm-backdrop" data-confirm-cancel></div>
+    <section class="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <h2 id="confirm-title" data-confirm-title>Confirm action</h2>
+        <p data-confirm-message>Are you sure?</p>
+        <div class="confirm-actions">
+            <button class="button ghost" type="button" data-confirm-cancel>Cancel</button>
+            <button class="button danger-button" type="button" data-confirm-accept>Continue</button>
+        </div>
+    </section>
+</div>
     <?php
 }
 
