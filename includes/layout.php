@@ -8,6 +8,8 @@ function render_header(string $title, string $description = '', array $meta = []
     $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
     $prefix = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/admin/') ? '../' : '';
     $user = current_user();
+    $metaImage = !empty($meta['image']) ? site_url((string)$meta['image']) : '';
+    $metaImageAlt = (string)($meta['image_alt'] ?? $fullTitle);
     ?>
 <!doctype html>
 <html lang="en">
@@ -19,7 +21,14 @@ function render_header(string $title, string $description = '', array $meta = []
     <meta property="og:title" content="<?= e($fullTitle) ?>">
     <meta property="og:description" content="<?= e($description) ?>">
     <meta property="og:type" content="<?= e($meta['type'] ?? 'website') ?>">
-    <?php if (!empty($meta['image'])): ?><meta property="og:image" content="<?= e($meta['image']) ?>"><?php endif; ?>
+    <?php if ($metaImage): ?>
+    <meta property="og:image" content="<?= e($metaImage) ?>">
+    <meta property="og:image:secure_url" content="<?= e($metaImage) ?>">
+    <meta property="og:image:alt" content="<?= e($metaImageAlt) ?>">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="<?= e($metaImage) ?>">
+    <meta name="twitter:image:alt" content="<?= e($metaImageAlt) ?>">
+    <?php endif; ?>
     <link rel="icon" type="image/svg+xml" href="<?= $prefix ?>assets/favicon.svg">
     <link rel="stylesheet" href="<?= $prefix ?>assets/css/styles.css">
 </head>

@@ -13,11 +13,12 @@ increment_view('car_listings', $id);
 $images = car_images($id);
 $primary = $images[0]['image_path'] ?? 'assets/css/car-placeholder.svg';
 $primaryTitle = $images[0]['image_title'] ?? $car['title'];
+$shareImage = $images[0]['image_path'] ?? 'assets/share-default.jpg';
 $sim = db()->prepare("SELECT c.*, (SELECT image_path FROM car_images i WHERE i.car_listing_id = c.id ORDER BY sort_order, id LIMIT 1) AS primary_image FROM car_listings c WHERE c.status='active' AND c.id <> ? AND (c.make = ? OR c.body_type = ?) ORDER BY c.created_at DESC LIMIT 4");
 $sim->execute([$id, $car['make'], $car['body_type']]);
 $vehicleName = trim($car['year'] . ' ' . $car['make'] . ' ' . $car['model'] . ' ' . $car['trim']);
 $shareDescription = $vehicleName . ' on Kinyan: ' . (!empty($car['lease_takeover']) ? money($car['lease_monthly_payment']) . '/mo lease takeover' : money($car['price'])) . ', ' . number_short($car['mileage']) . ' miles, located in ' . $car['city'] . ', ' . $car['state'] . '. Contact the seller directly.';
-render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$primary]);
+render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$shareImage,'image_alt'=>$images ? $primaryTitle : 'Kinyan car marketplace']);
 ?>
 <script type="application/ld+json"><?= json_encode(['@context'=>'https://schema.org','@type'=>'Vehicle','name'=>$car['title'],'brand'=>$car['make'],'model'=>$car['model'],'vehicleModelDate'=>$car['year'],'mileageFromOdometer'=>$car['mileage'],'offers'=>['@type'=>'Offer','price'=>$car['price'],'priceCurrency'=>'USD','availability'=>'https://schema.org/InStock']], JSON_UNESCAPED_SLASHES) ?></script>
 <section class="details-layout">

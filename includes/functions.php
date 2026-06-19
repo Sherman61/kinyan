@@ -195,6 +195,15 @@ function page_url(string $path, array $params = []): string
     return $path . $query;
 }
 
+function site_url(string $path = ''): string
+{
+    if (preg_match('#^https?://#i', $path)) {
+        return $path;
+    }
+    $base = rtrim(getenv('APP_URL') ?: 'https://kinyan.live', '/');
+    return $base . '/' . ltrim($path, '/');
+}
+
 function car_primary_image(int $listingId): ?string
 {
     $stmt = db()->prepare('SELECT image_path FROM car_images WHERE car_listing_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1');
