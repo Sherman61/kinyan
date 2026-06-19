@@ -43,6 +43,7 @@ $engine = trim(implode(' ', array_filter([
     $data['EngineModel'] ?? '',
 ])));
 $details = vin_detail_groups($data, $body, $fuel, $transmission, $engine);
+$additionalDetails = vin_additional_detail_groups($data);
 
 echo json_encode([
     'ok' => true,
@@ -56,6 +57,7 @@ echo json_encode([
     'drivetrain' => $data['DriveType'] ?? '',
     'engine' => $engine,
     'details' => $details,
+    'additional_details' => $additionalDetails,
     'history_note' => 'This VIN decoder does not confirm current mileage, last-sale mileage, title brands, liens, accidents, ownership history, theft records, or open recalls. Ask the seller for records and consider a title/history report before buying.',
 ]);
 
@@ -80,7 +82,7 @@ function vin_detail_groups(array $data, string $body, string $fuel, string $tran
             'title' => 'Engine and drivetrain',
             'items' => [
                 ['Engine', $engine],
-                ['Cylinders', $get('EngineNumberofCylinders')],
+                ['Cylinders', $get('EngineCylinders')],
                 ['Displacement', $get('DisplacementL') ? $get('DisplacementL') . 'L' : ''],
                 ['Horsepower', $get('EngineHP')],
                 ['Engine manufacturer', $get('EngineManufacturer')],
@@ -118,10 +120,10 @@ function vin_detail_groups(array $data, string $body, string $fuel, string $tran
             'title' => 'Safety and equipment decoded from VIN',
             'items' => [
                 ['Seat belts', $get('SeatBeltsAll')],
-                ['Front airbags', $get('FrontAirBagLoc')],
-                ['Side airbags', $get('SideAirBagLoc')],
-                ['Curtain airbags', $get('CurtainAirBagLoc')],
-                ['Knee airbags', $get('KneeAirBagLoc')],
+                ['Front airbags', $get('AirBagLocFront')],
+                ['Side airbags', $get('AirBagLocSide')],
+                ['Curtain airbags', $get('AirBagLocCurtain')],
+                ['Knee airbags', $get('AirBagLocKnee')],
                 ['ABS', $get('ABS')],
                 ['Electronic stability control', $get('ESC')],
                 ['Traction control', $get('TractionControl')],
@@ -139,6 +141,131 @@ function vin_detail_groups(array $data, string $body, string $fuel, string $tran
         $group['items'] = array_values(array_filter($group['items'], fn(array $item): bool => $item[1] !== ''));
         return $group;
     }, $groups), fn(array $group): bool => !empty($group['items'])));
+}
+
+function vin_additional_detail_groups(array $data): array
+{
+    $get = fn(string $key): string => clean_vin_value($data[$key] ?? '');
+    $range = function (string $fromKey, string $toKey, string $unit = '') use ($get): string {
+        $from = $get($fromKey);
+        $to = $get($toKey);
+        if ($from === '' && $to === '') return '';
+        $value = $from !== '' && $to !== '' && $from !== $to ? $from . ' to ' . $to : ($from ?: $to);
+        return $value . $unit;
+    };
+
+    $groups = [
+        ['title' => 'EV and battery', 'items' => [
+            ['Battery type', $get('BatteryType')],
+            ['Battery capacity', $range('BatteryKWh', 'BatteryKWh_to', ' kWh')],
+            ['Battery voltage', $range('BatteryV', 'BatteryV_to', ' V')],
+            ['Battery current', $range('BatteryA', 'BatteryA_to', ' A')],
+            ['Cells per module', $get('BatteryCells')],
+            ['Modules per pack', $get('BatteryModules')],
+            ['Battery packs', $get('BatteryPacks')],
+            ['EV drive unit', $get('EVDriveUnit')],
+            ['Charger level', $get('ChargerLevel')],
+            ['Charger power', $get('ChargerPowerKW') ? $get('ChargerPowerKW') . ' kW' : ''],
+            ['Other battery information', $get('BatteryInfo')],
+        ]],
+        ['title' => 'Dimensions and weight', 'items' => [
+            ['Curb weight', $get('CurbWeightLB') ? $get('CurbWeightLB') . ' lb' : ''],
+            ['Wheelbase', $range('WheelBaseShort', 'WheelBaseLong', ' in')],
+            ['Track width', $get('TrackWidth') ? $get('TrackWidth') . ' in' : ''],
+            ['Gross vehicle weight rating', $range('GVWR', 'GVWR_to')],
+            ['Gross combined weight rating', $range('GCWR', 'GCWR_to')],
+            ['Bed length', $get('BedLengthIN') ? $get('BedLengthIN') . ' in' : ''],
+            ['Number of wheels', $get('Wheels')],
+            ['Front wheel size', $get('WheelSizeFront') ? $get('WheelSizeFront') . ' in' : ''],
+            ['Rear wheel size', $get('WheelSizeRear') ? $get('WheelSizeRear') . ' in' : ''],
+            ['Windows', $get('Windows')],
+        ]],
+        ['title' => 'Engine and performance', 'items' => [
+            ['Engine power', $get('EngineKW') ? $get('EngineKW') . ' kW' : ''],
+            ['Horsepower range', $range('EngineHP', 'EngineHP_to', ' hp')],
+            ['Engine cycles', $get('EngineCycles')],
+            ['Valve train', $get('ValveTrainDesign')],
+            ['Fuel injection', $get('FuelInjectionType')],
+            ['Cooling type', $get('CoolingType')],
+            ['Top speed', $get('TopSpeedMPH') ? $get('TopSpeedMPH') . ' mph' : ''],
+            ['Other engine information', $get('OtherEngineInfo')],
+        ]],
+        ['title' => 'Drivetrain and transmission', 'items' => [
+            ['Transmission speeds', $get('TransmissionSpeeds')],
+            ['Axles', $get('Axles')],
+            ['Axle configuration', $get('AxleConfiguration')],
+            ['Brake system type', $get('BrakeSystemType')],
+            ['Brake system description', $get('BrakeSystemDesc')],
+        ]],
+        ['title' => 'Driver assistance and parking', 'items' => [
+            ['Parking assist', $get('ParkAssist')],
+            ['Rear cross-traffic alert', $get('RearCrossTrafficAlert')],
+            ['Rear automatic emergency braking', $get('RearAutomaticEmergencyBraking')],
+            ['Crash-imminent braking', $get('CIB')],
+            ['Dynamic brake support', $get('DynamicBrakeSupport')],
+            ['Pedestrian emergency braking', $get('PedestrianAutomaticEmergencyBraking')],
+            ['Lane departure warning', $get('LaneDepartureWarning')],
+            ['Lane centering assistance', $get('LaneCenteringAssistance')],
+            ['Blind-spot intervention', $get('BlindSpotIntervention')],
+            ['Automatic crash notification', $get('AutomaticCrashNotification')],
+        ]],
+        ['title' => 'Lighting and active safety', 'items' => [
+            ['Daytime running lights', $get('DaytimeRunningLight')],
+            ['Headlight source', $get('HeadlampLightSource')],
+            ['Automatic high-beam switching', $get('SemiautomaticHeadlampBeamSwitching')],
+            ['Adaptive driving beam', $get('AdaptiveDrivingBeam')],
+            ['Event data recorder', $get('EDR')],
+            ['Keyless ignition', $get('KeylessIgnition')],
+            ['Automatic window/sunroof reverse', $get('AutoReverseSystem')],
+            ['Pedestrian alert sound', $get('AutomaticPedestrianAlertingSound')],
+            ['Automation level', $range('SAEAutomationLevel', 'SAEAutomationLevel_to')],
+            ['Active safety notes', $get('ActiveSafetySysNote')],
+        ]],
+        ['title' => 'Interior and restraints', 'items' => [
+            ['Steering location', $get('SteeringLocation')],
+            ['Entertainment system', $get('EntertainmentSystem')],
+            ['Seat-belt pretensioners', $get('Pretensioner')],
+            ['Seat-cushion airbags', $get('AirBagLocSeatCushion')],
+            ['Other restraint information', $get('OtherRestraintSystemInfo')],
+        ]],
+        ['title' => 'Manufacturing and model metadata', 'items' => [
+            ['Plant company', $get('PlantCompanyName')],
+            ['Secondary trim', $get('Trim2')],
+            ['Secondary series', $get('Series2')],
+            ['Original base price', $get('BasePrice') ? '$' . number_format((float)$get('BasePrice'), 0) : ''],
+            ['Manufacturer notes', $get('Note')],
+            ['Non-land use', $get('NonLandUse')],
+        ]],
+        ['title' => 'Truck details', 'items' => [
+            ['Bed type', $get('BedType')],
+            ['Bed length', $get('BedLengthIN') ? $get('BedLengthIN') . ' in' : ''],
+            ['Cab type', $get('BodyCabType')],
+        ]],
+        ['title' => 'Motorcycle, bus and trailer details', 'items' => [
+            ['Motorcycle type', $get('CustomMotorcycleType')],
+            ['Motorcycle suspension', $get('MotorcycleSuspensionType')],
+            ['Motorcycle chassis', $get('MotorcycleChassisType')],
+            ['Motorcycle fuel-tank type', $get('MotorcycleFuelTankType')],
+            ['Motorcycle fuel-tank material', $get('MotorcycleFuelTankMaterial')],
+            ['Combined braking system', $get('CombinedBrakingSystem')],
+            ['Wheelie mitigation', $get('WheelieMitigation')],
+            ['Other motorcycle information', $get('OtherMotorcycleInfo')],
+            ['Bus type', $get('BusType')],
+            ['Bus floor configuration', $get('BusFloorConfigType')],
+            ['Bus length', $get('BusLength') ? $get('BusLength') . ' ft' : ''],
+            ['Other bus information', $get('OtherBusInfo')],
+            ['Trailer connection', $get('TrailerType')],
+            ['Trailer body type', $get('TrailerBodyType')],
+            ['Trailer length', $get('TrailerLength') ? $get('TrailerLength') . ' ft' : ''],
+            ['Other trailer information', $get('OtherTrailerInfo')],
+        ]],
+    ];
+
+    foreach ($groups as &$group) {
+        $group['items'] = array_values(array_filter($group['items'], fn(array $item): bool => $item[1] !== ''));
+    }
+    unset($group);
+    return $groups;
 }
 
 function clean_vin_value($value): string

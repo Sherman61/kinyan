@@ -6,7 +6,7 @@ render_header('VIN Check', 'Check a VIN and review decoded vehicle details befor
 ?>
 <section class="form-shell">
     <h1>VIN check</h1>
-    <p class="form-intro">Enter a 17-character VIN to decode vehicle identity, engine, drivetrain, body, manufacturing, and available safety/equipment details.</p>
+    <p class="form-intro">Enter a 17-character VIN to decode vehicle identity, engine, drivetrain, body, manufacturing, safety, battery, dimensions, equipment, and other available details.</p>
     <div class="details-card vin-check-card">
         <?php if (is_logged_in()): ?>
         <label>VIN<input name="vin" maxlength="17" placeholder="17-character VIN" data-vin-check-input></label>

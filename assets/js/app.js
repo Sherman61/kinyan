@@ -529,6 +529,46 @@ document.addEventListener('DOMContentLoaded', () => {
           results.append(section);
         }
       });
+      if ((data.additional_details || []).length) {
+        const additional = document.createElement('section');
+        additional.className = 'vin-additional';
+        const additionalHeading = document.createElement('h2');
+        additionalHeading.textContent = 'Additional details';
+        additional.append(additionalHeading);
+
+        data.additional_details.forEach((group) => {
+          const disclosure = document.createElement('details');
+          disclosure.className = 'vin-detail-disclosure';
+          const summary = document.createElement('summary');
+          const label = document.createElement('span');
+          const count = document.createElement('small');
+          const grid = document.createElement('div');
+          grid.className = 'spec-grid';
+          label.textContent = group.title;
+          count.textContent = group.items?.length ? `${group.items.length} detail${group.items.length === 1 ? '' : 's'}` : 'No decoded data';
+          summary.append(label, count);
+          (group.items || []).forEach(([nameText, value]) => {
+            const item = document.createElement('div');
+            const name = document.createElement('span');
+            const detail = document.createElement('strong');
+            name.textContent = nameText;
+            detail.textContent = value;
+            item.append(name, detail);
+            grid.append(item);
+          });
+          disclosure.append(summary);
+          if (grid.children.length) {
+            disclosure.append(grid);
+          } else {
+            const empty = document.createElement('p');
+            empty.className = 'field-note';
+            empty.textContent = 'NHTSA did not return decoded data for this category.';
+            disclosure.append(empty);
+          }
+          additional.append(disclosure);
+        });
+        results.append(additional);
+      }
       if (!results.children.length) {
         throw new Error('VIN decoded, but no detailed fields were returned.');
       }
