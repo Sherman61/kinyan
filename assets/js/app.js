@@ -87,20 +87,66 @@ document.addEventListener('DOMContentLoaded', () => {
   setGalleryImage(0);
 
   const saved = new Set(JSON.parse(localStorage.getItem('kinyan_saved_cars') || '[]'));
-  document.querySelectorAll('[data-save-car]').forEach((button) => {
-    const id = button.dataset.saveCar;
-    if (saved.has(id)) {
-      button.classList.add('saved');
-      button.textContent = '♥';
-    }
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      saved.has(id) ? saved.delete(id) : saved.add(id);
-      localStorage.setItem('kinyan_saved_cars', JSON.stringify([...saved]));
-      button.classList.toggle('saved');
-      button.textContent = saved.has(id) ? '♥' : '♡';
+  const saveSavedCars = () => localStorage.setItem('kinyan_saved_cars', JSON.stringify([...saved]));
+  const syncSaveButtons = (root = document) => {
+    root.querySelectorAll('[data-save-car]').forEach((button) => {
+      if (button.dataset.saveReady) return;
+      button.dataset.saveReady = '1';
+      const id = button.dataset.saveCar;
+      if (saved.has(id)) {
+        button.classList.add('saved');
+        button.textContent = '♥';
+      }
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        saved.has(id) ? saved.delete(id) : saved.add(id);
+        saveSavedCars();
+        button.classList.toggle('saved');
+        button.textContent = saved.has(id) ? '♥' : '♡';
+        const savedPage = document.querySelector('[data-saved-page]');
+        if (savedPage && !saved.has(id)) {
+          button.closest('.car-card')?.remove();
+          const remaining = document.querySelectorAll('[data-saved-results] .car-card').length;
+          const status = document.querySelector('[data-saved-status]');
+          if (status) status.textContent = remaining ? `${remaining} saved ${remaining === 1 ? 'listing' : 'listings'}` : 'No saved listings yet.';
+          if (!remaining) {
+            const results = document.querySelector('[data-saved-results]');
+            if (results) results.innerHTML = '<div class="empty-state"><h3>No saved cars yet</h3><p>Tap the heart on a car to save it here for later.</p><a class="button" href="cars.php">Browse cars</a></div>';
+          }
+        }
+      });
     });
-  });
+  };
+  syncSaveButtons();
+
+  const savedPage = document.querySelector('[data-saved-page]');
+  if (savedPage) {
+    const results = savedPage.querySelector('[data-saved-results]');
+    const status = savedPage.querySelector('[data-saved-status]');
+    const ids = [...saved];
+    if (!ids.length) {
+      if (status) status.textContent = 'No saved listings yet.';
+      if (results) results.innerHTML = '<div class="empty-state"><h3>No saved cars yet</h3><p>Tap the heart on a car to save it here for later.</p><a class="button" href="cars.php">Browse cars</a></div>';
+    } else {
+      fetch(`saved.php?partial=1&ids=${encodeURIComponent(ids.join(','))}`, { headers: { Accept: 'text/html' } })
+        .then((response) => {
+          if (!response.ok) throw new Error('Saved listings could not load.');
+          return response.text();
+        })
+        .then((html) => {
+          if (results) {
+            results.innerHTML = html;
+            syncSaveButtons(results);
+          }
+          const count = results?.querySelectorAll('.car-card').length || 0;
+          if (status) status.textContent = count ? `${count} saved ${count === 1 ? 'listing' : 'listings'}` : 'No saved listings found.';
+        })
+        .catch(() => {
+          if (status) status.textContent = 'Saved listings could not load.';
+          if (results) results.innerHTML = '<div class="empty-state"><h3>Could not load saved cars</h3><p>Please refresh the page or try again later.</p></div>';
+        });
+    }
+  }
 
   const recentKey = 'kinyan_recent_cars';
   const listingMatch = location.pathname.match(/listing\.php/);

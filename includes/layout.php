@@ -29,6 +29,7 @@ function render_header(string $title, string $description = '', array $meta = []
     <button class="nav-toggle" data-nav-toggle aria-label="Open navigation">☰</button>
     <nav class="site-nav" data-nav>
         <a class="<?= $current === 'cars.php' ? 'active' : '' ?>" href="<?= $prefix ?>cars.php">Cars</a>
+        <a class="<?= $current === 'saved.php' ? 'active' : '' ?>" href="<?= $prefix ?>saved.php">Saved</a>
         <a class="<?= $current === 'wanted.php' ? 'active' : '' ?>" href="<?= $prefix ?>wanted.php">Wanted</a>
         <a href="<?= $prefix ?>post-car.php">Sell</a>
         <a href="<?= $prefix ?>post-wanted.php">Request</a>
