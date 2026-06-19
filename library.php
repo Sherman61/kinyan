@@ -3,6 +3,37 @@ require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/layout.php';
 require_login();
 
+if (is_post()) {
+    verify_csrf();
+    require_app_rate_limit('edit_library_image_title', 40, 60 * 60);
+
+    $imagePath = trim((string)($_POST['image_path'] ?? ''));
+    $imageTitle = trim((string)($_POST['image_title'] ?? ''));
+
+    if ($imagePath === '') {
+        flash('error', 'That image could not be found. Please refresh the page and try again.');
+    } elseif (mb_strlen($imageTitle) > 160) {
+        flash('error', 'Image titles must be 160 characters or fewer.');
+    } else {
+        $updateStmt = db()->prepare('UPDATE car_images i
+            JOIN car_listings c ON c.id = i.car_listing_id
+            SET i.image_title = ?
+            WHERE c.user_id = ? AND i.image_path = ?');
+        $updateStmt->execute([$imageTitle, current_user()['id'], $imagePath]);
+
+        if ($updateStmt->rowCount() > 0) {
+            flash('success', $imageTitle === '' ? 'Image title removed.' : 'Image title saved.');
+        } else {
+            $ownedStmt = db()->prepare('SELECT 1 FROM car_images i JOIN car_listings c ON c.id = i.car_listing_id WHERE c.user_id = ? AND i.image_path = ? LIMIT 1');
+            $ownedStmt->execute([current_user()['id'], $imagePath]);
+            $imageExists = (bool)$ownedStmt->fetchColumn();
+            flash($imageExists ? 'info' : 'error', $imageExists ? 'The image title was already up to date.' : 'That image could not be found. Please refresh the page and try again.');
+        }
+    }
+
+    redirect('library.php');
+}
+
 $stmt = db()->prepare('SELECT i.image_path, COALESCE(MAX(NULLIF(i.image_title, "")), "") image_title, MAX(i.created_at) created_at, COUNT(DISTINCT c.id) listing_count
     FROM car_images i
     JOIN car_listings c ON c.id = i.car_listing_id
@@ -32,6 +63,16 @@ render_header('Image Library', 'Manage and review your uploaded Kinyan car image
                 <div>
                     <h2><?= e($image['image_title'] ?: 'Untitled photo') ?></h2>
                     <p><?= (int)$image['listing_count'] ?> synced listing<?= (int)$image['listing_count'] === 1 ? '' : 's' ?></p>
+                    <form method="post" class="library-title-form">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="image_path" value="<?= e($image['image_path']) ?>">
+                        <label for="image-title-<?= md5((string)$image['image_path']) ?>">Image title</label>
+                        <div>
+                            <input id="image-title-<?= md5((string)$image['image_path']) ?>" name="image_title" value="<?= e($image['image_title']) ?>" maxlength="160" placeholder="Front exterior, dashboard, odometer">
+                            <button class="button small" type="submit">Save</button>
+                        </div>
+                        <small>This title is used anywhere this photo is synced.</small>
+                    </form>
                     <div class="synced-list">
                         <?php foreach ($links as $link): ?>
                             <a href="post-car.php?id=<?= (int)$link['id'] ?>">
