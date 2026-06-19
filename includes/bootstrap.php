@@ -16,6 +16,7 @@ define('APP_NAME', 'Kinyan');
 define('BASE_PATH', dirname(__DIR__));
 define('UPLOAD_DIR', BASE_PATH . '/uploads/cars');
 define('UPLOAD_URL', 'uploads/cars');
+define('HISTORY_REPORT_DIR', BASE_PATH . '/storage/history-reports');
 
 function load_env_file(string $path): void
 {

@@ -373,6 +373,80 @@ function upload_car_images(int $listingId, array $files): array
     return ['saved' => $saved, 'failed' => $failed, 'skipped' => $skipped];
 }
 
+function update_history_report(int $listingId, array $file, bool $remove): array
+{
+    $stmt = db()->prepare('SELECT history_report_file FROM car_listings WHERE id = ? LIMIT 1');
+    $stmt->execute([$listingId]);
+    $oldFile = (string)($stmt->fetchColumn() ?: '');
+    $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+
+    if ($error === UPLOAD_ERR_NO_FILE) {
+        if (!$remove || $oldFile === '') {
+            return ['old' => '', 'new' => '', 'uploaded' => false, 'removed' => false];
+        }
+        db()->prepare('UPDATE car_listings SET history_report_file = NULL, history_report_name = NULL, history_report_uploaded_at = NULL WHERE id = ?')->execute([$listingId]);
+        return ['old' => $oldFile, 'new' => '', 'uploaded' => false, 'removed' => true];
+    }
+
+    if ($error !== UPLOAD_ERR_OK) {
+        throw new RuntimeException(in_array($error, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)
+            ? 'The history report is too large. Upload a PDF up to 10MB.'
+            : 'The history report could not be uploaded. Please try again.');
+    }
+
+    $size = (int)($file['size'] ?? 0);
+    $tmp = (string)($file['tmp_name'] ?? '');
+    $originalName = trim(basename((string)($file['name'] ?? 'history-report.pdf')));
+    if ($size < 1 || $size > 10 * 1024 * 1024) {
+        throw new RuntimeException('The history report must be a PDF up to 10MB.');
+    }
+    if (!is_uploaded_file($tmp) || strtolower(pathinfo($originalName, PATHINFO_EXTENSION)) !== 'pdf') {
+        throw new RuntimeException('Upload a valid PDF history report.');
+    }
+
+    $mime = (string)(new finfo(FILEINFO_MIME_TYPE))->file($tmp);
+    $handle = @fopen($tmp, 'rb');
+    $signature = $handle ? (string)fread($handle, 5) : '';
+    if ($handle) fclose($handle);
+    if (!in_array($mime, ['application/pdf', 'application/x-pdf'], true) || $signature !== '%PDF-') {
+        throw new RuntimeException('Upload a valid PDF history report.');
+    }
+
+    if (!is_dir(HISTORY_REPORT_DIR) && !mkdir(HISTORY_REPORT_DIR, 0750, true) && !is_dir(HISTORY_REPORT_DIR)) {
+        throw new RuntimeException('History report storage is temporarily unavailable.');
+    }
+
+    $safeFile = bin2hex(random_bytes(20)) . '.pdf';
+    $destination = HISTORY_REPORT_DIR . '/' . $safeFile;
+    if (!move_uploaded_file($tmp, $destination)) {
+        throw new RuntimeException('The history report could not be saved. Please try again.');
+    }
+    @chmod($destination, 0640);
+
+    $displayName = preg_replace('/[\x00-\x1F\x7F]+/u', '', $originalName) ?: 'history-report.pdf';
+    $displayName = mb_substr($displayName, 0, 190);
+    try {
+        db()->prepare('UPDATE car_listings SET history_report_file = ?, history_report_name = ?, history_report_uploaded_at = NOW() WHERE id = ?')
+            ->execute([$safeFile, $displayName, $listingId]);
+    } catch (Throwable $e) {
+        @unlink($destination);
+        throw $e;
+    }
+
+    return ['old' => $oldFile, 'new' => $safeFile, 'uploaded' => true, 'removed' => false];
+}
+
+function delete_history_report_file(string $file): void
+{
+    if ($file === '' || basename($file) !== $file) {
+        return;
+    }
+    $path = HISTORY_REPORT_DIR . '/' . $file;
+    if (is_file($path)) {
+        @unlink($path);
+    }
+}
+
 function sanitize_uploaded_image(string $source, string $dest): bool
 {
     try {

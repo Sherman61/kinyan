@@ -285,7 +285,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (form.dataset.submitting === 'true') return;
         form.dataset.submitting = 'true';
 
-        const files = form.querySelector('input[type="file"]')?.files?.length || 0;
+        const files = form.querySelector('input[name="images[]"]')?.files?.length || 0;
+        const hasReport = (form.querySelector('input[name="history_report"]')?.files?.length || 0) > 0;
+        const uploadLabel = files && hasReport ? `${files} photo${files === 1 ? '' : 's'} and a history report` : files ? `${files} photo${files === 1 ? '' : 's'}` : hasReport ? 'a history report' : '';
         const status = form.querySelector('[data-upload-status]');
         const stage = form.querySelector('[data-upload-stage]');
         const percentText = form.querySelector('[data-upload-percent]');
@@ -300,10 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         status.hidden = false;
-        setProgress(4, 'Checking listing details', files ? `Preparing ${files} photo${files === 1 ? '' : 's'} for upload.` : 'Submitting your listing without new photos.');
+        setProgress(4, 'Checking listing details', uploadLabel ? `Preparing ${uploadLabel} for upload.` : 'Submitting your listing without new files.');
         if (submit && submit.classList.contains('button')) {
           submit.dataset.originalText = submit.textContent;
-          submit.textContent = files ? 'Uploading...' : 'Submitting...';
+          submit.textContent = uploadLabel ? 'Uploading...' : 'Submitting...';
           submit.setAttribute('aria-busy', 'true');
           submit.disabled = true;
         }
@@ -314,12 +316,12 @@ document.addEventListener('DOMContentLoaded', () => {
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         xhr.upload.addEventListener('progress', (progress) => {
           if (!progress.lengthComputable) {
-            setProgress(20, 'Uploading photos', 'Uploading your photos. Larger files can take a little longer.');
+            setProgress(20, 'Uploading files', 'Uploading your selected files. Larger files can take a little longer.');
             return;
           }
           const uploaded = progress.loaded / progress.total;
           const percent = 8 + uploaded * 77;
-          setProgress(percent, 'Uploading photos', `${files || 'Your'} photo${files === 1 ? '' : 's'} ${Math.round(uploaded * 100)}% uploaded.`);
+          setProgress(percent, 'Uploading files', `${uploadLabel || 'Your files'} ${Math.round(uploaded * 100)}% uploaded.`);
         });
         xhr.upload.addEventListener('load', () => {
           let value = 86;

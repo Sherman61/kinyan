@@ -49,6 +49,7 @@ if (is_post()) {
     if ($data['year'] < 1900 || $data['year'] > ((int)date('Y') + 1)) $errors[] = 'Enter a valid year.';
     if (!$data['lease_takeover'] && $data['price'] <= 0) $errors[] = 'Enter a valid asking price.';
     if ($data['mileage'] < 0) $errors[] = 'Enter valid mileage.';
+    if (mb_strlen($data['accident_history']) > 2000) $errors[] = 'Accident or crash history must be 2,000 characters or fewer.';
     if ($data['lease_takeover'] && (!$data['lease_end_date'] || !$data['lease_monthly_payment'])) $errors[] = 'Lease takeover posts need a lease end date and monthly payment.';
     if ($data['lease_takeover'] && $data['lease_months_left'] !== null && $data['lease_months_left'] <= 0) $errors[] = 'Lease end date must be in the future.';
     if ($data['seller_email'] && !filter_var($data['seller_email'], FILTER_VALIDATE_EMAIL)) $errors[] = 'Enter a valid email.';
@@ -56,44 +57,61 @@ if (is_post()) {
         foreach ($errors as $error) flash('error', $error);
         $car = array_merge($car, $data);
     } else {
+        $reportResult = ['old' => '', 'new' => '', 'uploaded' => false, 'removed' => false];
         try {
             db()->beginTransaction();
             if ($editing) {
                 $nextStatus = edited_listing_status((string)$car['status'], 'car_listings');
                 $stmt = db()->prepare('UPDATE car_listings SET title=?, make=?, model=?, trim=?, year=?, mileage=?, price=?, vin=?, exterior_color=?, interior_color=?, body_type=?, transmission=?, drivetrain=?, fuel_type=?, engine=?, condition_status=?, accident_history=?, clean_title=?, vehicle_history=?, lease_takeover=?, lease_months_left=?, lease_monthly_payment=?, lease_down_payment=?, lease_mileage_allowance=?, lease_miles_used=?, lease_transfer_fee=?, lease_company=?, lease_end_date=?, description=?, city=?, state=?, zip=?, seller_name=?, seller_phone=?, seller_email=?, preferred_contact_method=?, status=? WHERE id=?');
                 $stmt->execute([...array_values($data), $nextStatus, $id]);
+                $reportResult = update_history_report($id, $_FILES['history_report'] ?? [], isset($_POST['remove_history_report']));
                 $galleryResult = update_car_gallery($id, (int)$car['user_id']);
                 $imageResult = upload_car_images($id, $_FILES['images'] ?? []);
                 db()->commit();
+                delete_history_report_file((string)$reportResult['old']);
                 flash('success', $nextStatus === 'pending' ? 'Listing changes were submitted for approval.' : 'Listing updated.');
                 flash_gallery_update_result($galleryResult);
                 flash_image_upload_result($imageResult);
+                flash_history_report_result($reportResult);
                 finish_listing_save('dashboard.php');
             } else {
                 $status = new_listing_status();
                 $stmt = db()->prepare('INSERT INTO car_listings (user_id,title,make,model,trim,year,mileage,price,vin,exterior_color,interior_color,body_type,transmission,drivetrain,fuel_type,engine,condition_status,accident_history,clean_title,vehicle_history,lease_takeover,lease_months_left,lease_monthly_payment,lease_down_payment,lease_mileage_allowance,lease_miles_used,lease_transfer_fee,lease_company,lease_end_date,description,city,state,zip,seller_name,seller_phone,seller_email,preferred_contact_method,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
                 $stmt->execute([current_user()['id'], ...array_values($data), $status]);
                 $newId = (int)db()->lastInsertId();
+                $reportResult = update_history_report($newId, $_FILES['history_report'] ?? [], false);
                 $imageResult = upload_car_images($newId, $_FILES['images'] ?? []);
                 db()->commit();
                 flash('success', $status === 'active' ? 'Your car is live.' : 'Your car was submitted for approval.');
                 flash_image_upload_result($imageResult);
+                flash_history_report_result($reportResult);
                 finish_listing_save('dashboard.php');
             }
         } catch (RuntimeException $e) {
             if (db()->inTransaction()) {
                 db()->rollBack();
             }
+            delete_history_report_file((string)$reportResult['new']);
             flash('error', $e->getMessage());
             $car = array_merge($car, $data);
         } catch (PDOException $e) {
             if (db()->inTransaction()) {
                 db()->rollBack();
             }
+            delete_history_report_file((string)$reportResult['new']);
             error_log($e->getMessage());
             flash('error', 'We could not save the listing. Please check the form and try again.');
             $car = array_merge($car, $data);
         }
+    }
+}
+
+function flash_history_report_result(array $result): void
+{
+    if (!empty($result['uploaded'])) {
+        flash('success', 'Vehicle history report uploaded.');
+    } elseif (!empty($result['removed'])) {
+        flash('info', 'Vehicle history report removed.');
     }
 }
 
@@ -215,7 +233,17 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
         <label>Engine<input name="engine" value="<?= e($car['engine'] ?? '') ?>" placeholder="3.5L V6, hybrid, electric"></label>
         <label>Condition<select name="condition_status"><?php foreach ($conditions as $v): ?><option <?= selected($car['condition_status'] ?? '', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select></label>
         <label>New or used<select name="vehicle_history"><?php foreach ($vehicleHistories as $v): ?><option <?= selected($car['vehicle_history'] ?? 'Used', $v) ?>><?= e($v) ?></option><?php endforeach; ?></select><small>Choose New only for a car that has not been previously owned or titled.</small></label>
-        <label>Accident history<input name="accident_history" value="<?= e($car['accident_history'] ?? '') ?>" placeholder="No accidents, minor rear bumper repair, unknown"></label>
+        <label class="full">Accident or crash history<textarea name="accident_history" rows="4" maxlength="2000" placeholder="Example: Minor rear-end collision in 2022. Rear bumper replaced by a body shop. No airbag deployment or frame damage. Repair receipt available."><?= e($car['accident_history'] ?? '') ?></textarea><small>State “No known accidents” or “Unknown” when appropriate. Otherwise include the approximate date, damaged area, severity, airbag deployment, structural/frame damage, and repairs completed.</small></label>
+        <div class="history-report-upload full">
+            <label>Vehicle history report optional<input type="file" name="history_report" accept=".pdf,application/pdf"><small>Upload one PDF from CARFAX, AutoCheck, or a similar provider, up to 10MB. Buyers download it as a separate file.</small></label>
+            <?php if ($editing && !empty($car['history_report_file'])): ?>
+                <div class="current-report">
+                    <a href="history-report.php?id=<?= (int)$id ?>">Download current report: <?= e($car['history_report_name'] ?: 'Vehicle history report') ?></a>
+                    <label class="check remove-photo-check"><input type="checkbox" name="remove_history_report" data-confirm-check="Remove this history report from the listing?"> Remove current report</label>
+                </div>
+            <?php endif; ?>
+            <p class="field-note">Remove unnecessary personal information before uploading. Reports are supplied by sellers and are not verified or guaranteed by Kinyan. Buyers should confirm the VIN and report source before relying on the document.</p>
+        </div>
         <label class="check"><input type="checkbox" name="clean_title" <?= checked($car['clean_title'] ?? 1) ?>> Clean title</label>
         <label class="check"><input type="checkbox" name="lease_takeover" data-lease-toggle <?= checked($car['lease_takeover'] ?? 0) ?>> This is a lease takeover, not a regular sale</label>
         <fieldset class="lease-fields full" data-lease-fields>

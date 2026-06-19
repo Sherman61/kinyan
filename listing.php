@@ -32,9 +32,17 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$pri
             <div class="thumbs" data-gallery-thumbs><?php foreach ($images as $img): ?><button data-thumb="<?= e($img['image_path']) ?>" data-title="<?= e($img['image_title'] ?: $car['title']) ?>"><img src="<?= e($img['image_path']) ?>" alt="<?= e($img['image_title'] ?: $car['title']) ?>"></button><?php endforeach; ?></div>
         </div>
         <section class="details-card"><h2>Description</h2><p><?= nl2br(e($car['description'])) ?></p></section>
+        <?php if (!empty($car['history_report_file'])): ?>
+        <section class="details-card history-report-card">
+            <div><h2>Vehicle history report</h2><p>A seller-provided report is available for this vehicle. Confirm that the VIN in the report matches the car.</p></div>
+            <a class="button secondary" href="history-report.php?id=<?= (int)$car['id'] ?>">Download PDF report</a>
+            <small>Kinyan does not verify or guarantee seller-uploaded reports.</small>
+        </section>
+        <?php endif; ?>
         <section class="details-card"><h2>Vehicle details</h2><div class="spec-grid">
             <?php foreach (['Year'=>'year','Make'=>'make','Model'=>'model','Trim'=>'trim','Mileage'=>'mileage','New or used'=>'vehicle_history','Body type'=>'body_type','Transmission'=>'transmission','Drivetrain'=>'drivetrain','Fuel'=>'fuel_type','Engine'=>'engine','Condition'=>'condition_status','Accident history'=>'accident_history','Clean title'=>'clean_title','Lease takeover'=>'lease_takeover','VIN'=>'vin'] as $label=>$key): ?>
-            <div><span><?= e($label) ?></span><strong><?= in_array($key, ['clean_title','lease_takeover'], true) ? (!empty($car[$key]) ? 'Yes' : 'No') : e((string)$car[$key]) ?></strong></div>
+            <?php $detailValue = $key === 'accident_history' && trim((string)$car[$key]) === '' ? 'Not provided' : (string)$car[$key]; ?>
+            <div><span><?= e($label) ?></span><strong><?= in_array($key, ['clean_title','lease_takeover'], true) ? (!empty($car[$key]) ? 'Yes' : 'No') : e($detailValue) ?></strong></div>
             <?php endforeach; ?>
         </div></section>
         <?php if (!empty($car['lease_takeover'])): ?>

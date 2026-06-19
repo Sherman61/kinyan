@@ -17,6 +17,9 @@ if (is_post()) {
     if ($action === 'delete') {
         $stmt = db()->prepare("DELETE FROM {$table} WHERE id = ?");
         $stmt->execute([$id]);
+        if ($table === 'car_listings') {
+            delete_history_report_file((string)($post['history_report_file'] ?? ''));
+        }
         flash('success', 'Post deleted.');
     } elseif (in_array($action, array_keys(status_options_for_user($post, $table)), true) && $table === 'car_listings') {
         $stmt = db()->prepare('UPDATE car_listings SET status = ? WHERE id = ?');

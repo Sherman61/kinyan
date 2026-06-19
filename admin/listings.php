@@ -17,7 +17,11 @@ if (is_post()) {
     } elseif ($action === 'reorder_images') {
         foreach (($_POST['sort'] ?? []) as $imageId => $sort) db()->prepare('UPDATE car_images SET sort_order = ? WHERE id = ?')->execute([(int)$sort, (int)$imageId]);
     } elseif ($action === 'delete') {
+        $reportStmt = db()->prepare('SELECT history_report_file FROM car_listings WHERE id = ? LIMIT 1');
+        $reportStmt->execute([$id]);
+        $reportFile = (string)($reportStmt->fetchColumn() ?: '');
         db()->prepare('DELETE FROM car_listings WHERE id = ?')->execute([$id]);
+        delete_history_report_file($reportFile);
     } elseif ($action === 'set_status' && in_array($_POST['status'] ?? '', $statuses, true)) {
         db()->prepare('UPDATE car_listings SET status = ? WHERE id = ?')->execute([$_POST['status'], $id]);
     } elseif ($action === 'feature') {
