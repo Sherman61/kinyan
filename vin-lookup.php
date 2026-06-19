@@ -106,35 +106,6 @@ function vin_detail_groups(array $data, string $body, string $fuel, string $tran
                 ['Trailer body type', $get('TrailerBodyType')],
             ],
         ],
-        [
-            'title' => 'Manufacturing',
-            'items' => [
-                ['Manufacturer', $get('Manufacturer')],
-                ['Plant city', $get('PlantCity')],
-                ['Plant state', $get('PlantState')],
-                ['Plant country', $get('PlantCountry')],
-                ['Destination market', $get('DestinationMarket')],
-            ],
-        ],
-        [
-            'title' => 'Safety and equipment decoded from VIN',
-            'items' => [
-                ['Seat belts', $get('SeatBeltsAll')],
-                ['Front airbags', $get('AirBagLocFront')],
-                ['Side airbags', $get('AirBagLocSide')],
-                ['Curtain airbags', $get('AirBagLocCurtain')],
-                ['Knee airbags', $get('AirBagLocKnee')],
-                ['ABS', $get('ABS')],
-                ['Electronic stability control', $get('ESC')],
-                ['Traction control', $get('TractionControl')],
-                ['Backup camera', $get('BackupCamera')],
-                ['Blind spot monitoring', $get('BlindSpotMon')],
-                ['Lane keep system', $get('LaneKeepSystem')],
-                ['Forward collision warning', $get('ForwardCollisionWarning')],
-                ['Adaptive cruise control', $get('AdaptiveCruiseControl')],
-                ['TPMS', $get('TPMS')],
-            ],
-        ],
     ];
 
     return array_values(array_filter(array_map(function (array $group): array {
@@ -145,7 +116,17 @@ function vin_detail_groups(array $data, string $body, string $fuel, string $tran
 
 function vin_additional_detail_groups(array $data): array
 {
-    $get = fn(string $key): string => clean_vin_value($data[$key] ?? '');
+    $usedKeys = [
+        'ModelYear', 'Make', 'Model', 'Trim', 'Series', 'VehicleType', 'BodyClass', 'VehicleDescriptor',
+        'EngineConfiguration', 'DisplacementL', 'EngineModel', 'EngineCylinders', 'EngineHP',
+        'EngineManufacturer', 'FuelTypePrimary', 'FuelTypeSecondary', 'ElectrificationLevel',
+        'TransmissionStyle', 'DriveType', 'Turbo', 'Doors', 'Seats', 'SeatRows', 'BodyCabType',
+        'WheelBaseShort', 'GVWR', 'GVWR_to', 'TrailerBodyType',
+    ];
+    $get = function (string $key) use ($data, &$usedKeys): string {
+        $usedKeys[] = $key;
+        return clean_vin_value($data[$key] ?? '');
+    };
     $range = function (string $fromKey, string $toKey, string $unit = '') use ($get): string {
         $from = $get($fromKey);
         $to = $get($toKey);
@@ -197,6 +178,22 @@ function vin_additional_detail_groups(array $data): array
             ['Brake system type', $get('BrakeSystemType')],
             ['Brake system description', $get('BrakeSystemDesc')],
         ]],
+        ['title' => 'Safety and equipment', 'items' => [
+            ['Seat belts', $get('SeatBeltsAll')],
+            ['Front airbags', $get('AirBagLocFront')],
+            ['Side airbags', $get('AirBagLocSide')],
+            ['Curtain airbags', $get('AirBagLocCurtain')],
+            ['Knee airbags', $get('AirBagLocKnee')],
+            ['ABS', $get('ABS')],
+            ['Electronic stability control', $get('ESC')],
+            ['Traction control', $get('TractionControl')],
+            ['Tire-pressure monitoring', $get('TPMS')],
+            ['Backup camera', $get('BackupCamera')],
+            ['Blind-spot monitoring', $get('BlindSpotMon')],
+            ['Lane-keeping assistance', $get('LaneKeepSystem')],
+            ['Forward collision warning', $get('ForwardCollisionWarning')],
+            ['Adaptive cruise control', $get('AdaptiveCruiseControl')],
+        ]],
         ['title' => 'Driver assistance and parking', 'items' => [
             ['Parking assist', $get('ParkAssist')],
             ['Rear cross-traffic alert', $get('RearCrossTrafficAlert')],
@@ -229,6 +226,11 @@ function vin_additional_detail_groups(array $data): array
             ['Other restraint information', $get('OtherRestraintSystemInfo')],
         ]],
         ['title' => 'Manufacturing and model metadata', 'items' => [
+            ['Manufacturer', $get('Manufacturer')],
+            ['Plant city', $get('PlantCity')],
+            ['Plant state', $get('PlantState')],
+            ['Plant country', $get('PlantCountry')],
+            ['Destination market', $get('DestinationMarket')],
             ['Plant company', $get('PlantCompanyName')],
             ['Secondary trim', $get('Trim2')],
             ['Secondary series', $get('Series2')],
@@ -265,7 +267,34 @@ function vin_additional_detail_groups(array $data): array
         $group['items'] = array_values(array_filter($group['items'], fn(array $item): bool => $item[1] !== ''));
     }
     unset($group);
+    $groups[] = vin_remaining_detail_group($data, array_unique($usedKeys));
     return $groups;
+}
+
+function vin_remaining_detail_group(array $data, array $usedKeys): array
+{
+    $technicalKeys = [
+        'VIN', 'ErrorCode', 'ErrorText', 'SuggestedVIN', 'PossibleValues', 'AdditionalErrorText',
+        'MakeID', 'ModelID', 'ManufacturerId',
+    ];
+    $items = [];
+    foreach ($data as $key => $rawValue) {
+        if (in_array($key, $usedKeys, true) || in_array($key, $technicalKeys, true) || preg_match('/(?:ID|Id)$/', (string)$key)) {
+            continue;
+        }
+        $value = clean_vin_value($rawValue);
+        if ($value === '') {
+            continue;
+        }
+        $label = preg_replace('/(?<!^)([A-Z])/', ' $1', (string)$key) ?: (string)$key;
+        $label = str_replace(
+            ['N C S A', 'T P M S', 'A B S', 'E S C', 'S A E', 'G V W R', 'G C W R', 'C C', 'C I', 'K W', 'M P H'],
+            ['NCSA', 'TPMS', 'ABS', 'ESC', 'SAE', 'GVWR', 'GCWR', 'CC', 'CI', 'kW', 'MPH'],
+            $label
+        );
+        $items[] = [ucfirst(trim(str_replace('_to', ' maximum', $label))), $value];
+    }
+    return ['title' => 'Other decoded NHTSA fields', 'items' => $items];
 }
 
 function clean_vin_value($value): string
