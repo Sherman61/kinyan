@@ -55,8 +55,8 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$pri
         <a class="button full-width" data-track-contact="call" href="tel:<?= e(clean_phone_href($car['seller_phone'])) ?>">Call Seller</a>
         <a class="button secondary full-width" data-track-contact="text" href="sms:<?= e(clean_phone_href($car['seller_phone'])) ?>">Text Seller</a>
         <?php if ($car['seller_email']): ?><a class="button ghost full-width" data-track-contact="email" href="mailto:<?= e($car['seller_email']) ?>">Email Seller</a><?php endif; ?>
-        <button class="button ghost full-width" data-copy-link>Copy link</button>
-        <button class="button ghost full-width" data-share data-share-text="<?= e($shareDescription) ?>">Share</button>
+        <button class="button ghost full-width" data-copy-link data-track-contact="copy_link">Copy link</button>
+        <button class="button ghost full-width" data-share data-track-contact="share" data-share-text="<?= e($shareDescription) ?>">Share</button>
         <form method="post" class="report-form"><?= csrf_field() ?><input name="reason" placeholder="Report reason"><textarea name="details" placeholder="Details"></textarea><button class="danger" type="submit">Report listing</button></form>
     </aside>
 </section>

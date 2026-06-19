@@ -432,8 +432,49 @@ function increment_view(string $table, int $id): void
 
 function save_contact_click(string $targetType, int $targetId, string $method): void
 {
+    if (!in_array($targetType, ['car', 'wanted'], true) || $targetId <= 0) {
+        return;
+    }
+    $method = str_replace('-', '_', strtolower($method));
+    if (!in_array($method, ['call', 'text', 'email', 'copy_link', 'share'], true)) {
+        return;
+    }
     $stmt = db()->prepare('INSERT INTO contact_clicks (target_type, target_id, method, ip_address, created_at) VALUES (?, ?, ?, ?, NOW())');
     $stmt->execute([$targetType, $targetId, $method, $_SERVER['REMOTE_ADDR'] ?? '']);
+}
+
+function contact_click_stats(string $targetType, array $targetIds): array
+{
+    $targetIds = array_values(array_unique(array_filter(array_map('intval', $targetIds), fn($id) => $id > 0)));
+    if (!$targetIds || !in_array($targetType, ['car', 'wanted'], true)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($targetIds), '?'));
+    $stmt = db()->prepare("SELECT target_id,
+            SUM(method = 'call') calls,
+            SUM(method = 'text') texts,
+            SUM(method = 'email') emails,
+            SUM(method = 'copy_link') copy_links,
+            SUM(method = 'share') shares,
+            COUNT(*) total
+        FROM contact_clicks
+        WHERE target_type = ? AND target_id IN ($placeholders)
+        GROUP BY target_id");
+    $stmt->execute([$targetType, ...$targetIds]);
+
+    $stats = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $stats[(int)$row['target_id']] = [
+            'calls' => (int)$row['calls'],
+            'texts' => (int)$row['texts'],
+            'emails' => (int)$row['emails'],
+            'copy_links' => (int)$row['copy_links'],
+            'shares' => (int)$row['shares'],
+            'total' => (int)$row['total'],
+        ];
+    }
+    return $stats;
 }
 
 function report_target(string $targetType, int $targetId, string $reason, string $details): void

@@ -157,20 +157,28 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(recentKey, JSON.stringify(recent.slice(0, 12)));
   }
 
-  document.querySelector('[data-copy-link]')?.addEventListener('click', async () => {
+  const trackListingAction = (method) => {
+    if (!method) return;
+    const url = new URL(location.href);
+    url.searchParams.set('contact', method);
+    navigator.sendBeacon(url.toString());
+  };
+
+  document.querySelector('[data-copy-link]')?.addEventListener('click', async (event) => {
+    trackListingAction(event.currentTarget.dataset.trackContact);
     await navigator.clipboard.writeText(location.href);
   });
   document.querySelector('[data-share]')?.addEventListener('click', async (event) => {
+    trackListingAction(event.currentTarget.dataset.trackContact);
     const text = event.currentTarget.dataset.shareText || document.querySelector('meta[name="description"]')?.content || '';
     if (navigator.share) await navigator.share({ title: document.title, text, url: location.href });
     else await navigator.clipboard.writeText(location.href);
   });
 
   document.querySelectorAll('[data-track-contact]').forEach((link) => {
+    if (link.matches('[data-copy-link], [data-share]')) return;
     link.addEventListener('click', () => {
-      const url = new URL(location.href);
-      url.searchParams.set('contact', link.dataset.trackContact);
-      navigator.sendBeacon(url.toString());
+      trackListingAction(link.dataset.trackContact);
     });
   });
 
