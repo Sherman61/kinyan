@@ -63,10 +63,32 @@ $sorts = [
     'year_asc' => 'c.year ASC',
 ];
 $sort = $sorts[$_GET['sort'] ?? 'newest'] ?? $sorts['newest'];
-$sql = "SELECT c.*, (SELECT image_path FROM car_images i WHERE i.car_listing_id = c.id ORDER BY sort_order, id LIMIT 1) AS primary_image FROM car_listings c WHERE " . implode(' AND ', $where) . " ORDER BY $sort LIMIT 80";
+$countStmt = db()->prepare("SELECT COUNT(*) FROM car_listings c WHERE " . implode(' AND ', $where));
+$countStmt->execute($params);
+$pagination = pagination_state((int)$countStmt->fetchColumn());
+$sql = "SELECT c.*, (SELECT image_path FROM car_images i WHERE i.car_listing_id = c.id ORDER BY sort_order, id LIMIT 1) AS primary_image FROM car_listings c WHERE " . implode(' AND ', $where) . " ORDER BY $sort LIMIT {$pagination['per_page']} OFFSET {$pagination['offset']}";
 $stmt = db()->prepare($sql);
 $stmt->execute($params);
 $cars = $stmt->fetchAll();
+
+$renderResults = static function () use ($cars, $pagination): void {
+    if ($cars) {
+        echo '<div class="grid cards-grid" data-results-grid>';
+        foreach ($cars as $car) render_car_card($car);
+        echo '</div>';
+    } else {
+        echo '<div class="empty-state"><h3>No cars match your search</h3><p>Try broadening your filters or checking wanted posts.</p><a class="button ghost" href="cars.php">Clear filters</a></div>';
+    }
+    render_pagination($pagination);
+};
+
+if (($_GET['partial'] ?? '') === '1') {
+    ob_start();
+    $renderResults();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => true, 'total' => (int)$pagination['total'], 'html' => ob_get_clean()], JSON_THROW_ON_ERROR);
+    exit;
+}
 
 render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact sellers directly.');
 ?>
@@ -75,9 +97,9 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
     <p>Search active vehicle listings and contact sellers directly.</p>
 </section>
 <section class="browse-layout filters-collapsed" data-browse-layout>
-    <aside class="filters" data-filters>
-        <button class="filter-close" data-filter-toggle>Filters</button>
-        <form method="get" class="filter-form">
+    <aside class="filters" id="car-filters" data-filters aria-label="Car filters">
+        <button class="filter-close" type="button" data-filter-toggle aria-controls="car-filters" aria-expanded="false">Close filters</button>
+        <form method="get" class="filter-form" data-browse-form>
             <input name="q" value="<?= e($q) ?>" placeholder="Search make, model, city">
             <select name="listing_type"><option value="">Sale and lease</option><option value="sale" <?= selected($listingType, 'sale') ?>>Regular sale only</option><option value="lease" <?= selected($listingType, 'lease') ?>>Lease takeover only</option></select>
             <input name="make" value="<?= e($_GET['make'] ?? '') ?>" placeholder="Make, e.g. Toyota">
@@ -99,10 +121,10 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
     </aside>
     <div class="browse-main">
         <div class="browse-toolbar">
-            <button class="button secondary filter-toggle-button" data-filter-toggle>Filters</button>
-            <span><?= count($cars) ?> cars</span>
-            <form method="get">
-                <?php foreach ($_GET as $k => $v): if ($k !== 'sort'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; endforeach; ?>
+            <button class="button secondary filter-toggle-button" type="button" data-filter-toggle aria-controls="car-filters" aria-expanded="false">Filters</button>
+            <span data-results-count><?= (int)$pagination['total'] ?> cars</span>
+            <form method="get" data-sort-form>
+                <?php foreach ($_GET as $k => $v): if ($k !== 'sort' && $k !== 'page'): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>"><?php endif; endforeach; ?>
                 <select name="sort" onchange="this.form.requestSubmit()">
                     <option value="newest" <?= selected($_GET['sort'] ?? '', 'newest') ?>>Newest</option>
                     <option value="oldest" <?= selected($_GET['sort'] ?? '', 'oldest') ?>>Oldest</option>
@@ -116,10 +138,9 @@ render_header('Cars for Sale', 'Search cars for sale on Kinyan and contact selle
                     <option value="year_asc" <?= selected($_GET['sort'] ?? '', 'year_asc') ?>>Year oldest first</option>
                 </select>
             </form>
-            <button class="icon-button" data-grid-toggle title="Grid or list">▦</button>
+            <button class="icon-button" type="button" data-grid-toggle aria-label="Switch to list view" aria-pressed="false">▦</button>
         </div>
-        <?php if ($cars): ?><div class="grid cards-grid" data-results-grid><?php foreach ($cars as $car) render_car_card($car); ?></div>
-        <?php else: ?><div class="empty-state"><h3>No cars match your search</h3><p>Try broadening your filters or checking wanted posts.</p></div><?php endif; ?>
+        <div class="results-region" data-results-region aria-live="polite" aria-busy="false"><?php $renderResults(); ?></div>
     </div>
 </section>
 <?php render_footer(); ?>

@@ -20,7 +20,7 @@ function render_car_card(array $car): void
         <div class="card-body">
             <div class="card-topline">
                 <strong><?= !empty($car['lease_takeover']) ? money($car['lease_monthly_payment']) . '/mo' : money($car['price']) ?></strong>
-                <button class="icon-button" data-save-car="<?= (int)$car['id'] ?>" title="Save car">♡</button>
+                <div class="card-tools"><button class="icon-button" data-compare-car="<?= (int)$car['id'] ?>" title="Add to comparison" aria-label="Add car to comparison">⇄</button><button class="icon-button" data-save-car="<?= (int)$car['id'] ?>" title="Save car" aria-label="Save car">♡</button></div>
             </div>
             <h3><a href="listing.php?id=<?= (int)$car['id'] ?>"><?= e(trim($car['year'] . ' ' . $car['make'] . ' ' . $car['model'] . ' ' . ($car['trim'] ?? ''))) ?></a></h3>
             <p><?= e(number_short($car['mileage'])) ?> miles · <?= e($car['city']) ?>, <?= e($car['state']) ?></p>

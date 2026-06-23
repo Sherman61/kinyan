@@ -63,6 +63,53 @@ function csrf_field(): string
     return '<input type="hidden" name="csrf_token" value="' . e(csrf_token()) . '">';
 }
 
+function bot_protection_fields(string $action): string
+{
+    $token = bin2hex(random_bytes(16));
+    $_SESSION['bot_form_tokens'][$token] = [
+        'action' => $action,
+        'started_at' => time(),
+    ];
+
+    return '<div class="bot-trap" aria-hidden="true">'
+        . '<label>Website<input type="text" name="company_website" value="" tabindex="-1" autocomplete="off"></label>'
+        . '</div>'
+        . '<input type="hidden" name="form_token" value="' . e($token) . '">';
+}
+
+function human_submission_passes(string $action, int $minimumSeconds = 2, int $maximumSeconds = 86400): bool
+{
+    $honeypot = trim((string)($_POST['company_website'] ?? ''));
+    $token = (string)($_POST['form_token'] ?? '');
+    $record = $_SESSION['bot_form_tokens'][$token] ?? null;
+    unset($_SESSION['bot_form_tokens'][$token]);
+
+    $reason = '';
+    if ($honeypot !== '') {
+        $reason = 'honeypot_filled';
+    } elseif (!$token || !is_array($record) || ($record['action'] ?? '') !== $action) {
+        $reason = 'missing_or_invalid_form_token';
+    } else {
+        $age = time() - (int)($record['started_at'] ?? 0);
+        if ($age < $minimumSeconds) {
+            $reason = 'submitted_too_quickly';
+        } elseif ($age > $maximumSeconds) {
+            $reason = 'form_expired';
+        }
+    }
+
+    if ($reason === '') {
+        return true;
+    }
+
+    log_app_error('Bot-like form submission blocked.', 'A form submission was blocked by abuse protection.', [
+        'action' => $action,
+        'reason' => $reason,
+        'ip_hash' => hash('sha256', (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown')),
+    ], 'warning');
+    return false;
+}
+
 function verify_csrf(): void
 {
     $token = $_POST['csrf_token'] ?? '';
@@ -213,6 +260,36 @@ function checked($value): string
     return !empty($value) ? 'checked' : '';
 }
 
+function pagination_state(int $total, int $perPage = 24): array
+{
+    $perPage = max(1, min(60, $perPage));
+    $pages = max(1, (int)ceil($total / $perPage));
+    $page = max(1, min($pages, (int)($_GET['page'] ?? 1)));
+    return ['page' => $page, 'pages' => $pages, 'per_page' => $perPage, 'offset' => ($page - 1) * $perPage, 'total' => $total];
+}
+
+function pagination_url(int $page): string
+{
+    $query = $_GET;
+    unset($query['partial']);
+    $query['page'] = max(1, $page);
+    return basename($_SERVER['SCRIPT_NAME'] ?? '') . '?' . http_build_query($query);
+}
+
+function render_pagination(array $pagination): void
+{
+    if (($pagination['pages'] ?? 1) <= 1) return;
+    $page = (int)$pagination['page'];
+    $pages = (int)$pagination['pages'];
+    ?>
+    <nav class="pagination" aria-label="Results pages">
+        <?php if ($page > 1): ?><a class="button ghost" rel="prev" href="<?= e(pagination_url($page - 1)) ?>">Previous</a><?php endif; ?>
+        <span>Page <?= $page ?> of <?= $pages ?></span>
+        <?php if ($page < $pages): ?><a class="button ghost" rel="next" href="<?= e(pagination_url($page + 1)) ?>">Next</a><?php endif; ?>
+    </nav>
+    <?php
+}
+
 function slugify(string $text): string
 {
     $text = strtolower(trim($text));
@@ -289,6 +366,9 @@ function user_can_activate_post(array $post, string $table): bool
 function status_options_for_user(array $post, string $table): array
 {
     $options = ['inactive' => 'Inactive'];
+    if (in_array($post['status'] ?? '', ['expired', 'inactive'], true)) {
+        $options = ['renew' => 'Renew'] + $options;
+    }
     if ($table === 'car_listings') {
         $options['sold'] = 'Sold';
     }
@@ -314,8 +394,188 @@ function site_url(string $path = ''): string
     if (preg_match('#^https?://#i', $path)) {
         return $path;
     }
-    $base = rtrim(getenv('APP_URL') ?: 'https://kinyan.live', '/');
+    $base = rtrim(getenv('APP_URL') ?: 'https://kinyan.shop', '/');
     return $base . '/' . ltrim($path, '/');
+}
+
+function mail_service_enabled(): bool
+{
+    if (!filter_var(getenv('MAIL_ENABLED') ?: 'false', FILTER_VALIDATE_BOOL)) {
+        return false;
+    }
+
+    $transport = strtolower(trim((string)(getenv('MAIL_TRANSPORT') ?: 'mail')));
+    if ($transport !== 'smtp') {
+        return true;
+    }
+
+    return (bool)(getenv('SMTP_HOST') && getenv('SMTP_PORT') && getenv('SMTP_USER') && getenv('SMTP_PASS'));
+}
+
+function mail_sender_address(): string
+{
+    $from = trim((string)(getenv('MAIL_FROM') ?: setting('support_email', 'support@kinyan.live')));
+    return filter_var($from, FILTER_VALIDATE_EMAIL) ? $from : 'support@kinyan.live';
+}
+
+function send_app_mail(string $to, string $subject, string $body): bool
+{
+    if (!mail_service_enabled() || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $from = mail_sender_address();
+    $fromName = trim((string)(getenv('MAIL_FROM_NAME') ?: 'Kinyan'));
+    $safeSubject = trim(preg_replace('/[\r\n]+/', ' ', $subject) ?? $subject);
+    $headers = [
+        'From: ' . mail_header_address($from, $fromName),
+        'Reply-To: ' . $from,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=UTF-8',
+        'X-Mailer: Kinyan',
+    ];
+
+    try {
+        $transport = strtolower(trim((string)(getenv('MAIL_TRANSPORT') ?: 'mail')));
+        if ($transport === 'smtp') {
+            smtp_send_mail($from, $to, $safeSubject, $body, $headers);
+            return true;
+        }
+
+        return @mail($to, $safeSubject, $body, implode("\r\n", $headers));
+    } catch (Throwable $e) {
+        log_app_error($e, 'Email delivery is temporarily unavailable.', [
+            'transport' => strtolower(trim((string)(getenv('MAIL_TRANSPORT') ?: 'mail'))),
+            'to_hash' => hash('sha256', strtolower($to)),
+            'subject' => $safeSubject,
+        ], 'warning');
+        return false;
+    }
+}
+
+function mail_header_address(string $email, string $name = ''): string
+{
+    $cleanName = trim(preg_replace('/[\r\n"]+/', '', $name) ?? '');
+    if ($cleanName === '') {
+        return $email;
+    }
+    return sprintf('"%s" <%s>', addcslashes($cleanName, '\\'), $email);
+}
+
+function smtp_send_mail(string $from, string $to, string $subject, string $body, array $headers): void
+{
+    $host = trim((string)getenv('SMTP_HOST'));
+    $port = (int)(getenv('SMTP_PORT') ?: 587);
+    $user = (string)getenv('SMTP_USER');
+    $pass = (string)getenv('SMTP_PASS');
+    $encryption = strtolower(trim((string)(getenv('SMTP_ENCRYPTION') ?: 'tls')));
+    $timeout = 15;
+    $remote = ($encryption === 'ssl' ? 'ssl://' : '') . $host . ':' . $port;
+    $context = stream_context_create([
+        'ssl' => [
+            'verify_peer' => true,
+            'verify_peer_name' => true,
+            'peer_name' => $host,
+        ],
+    ]);
+    $socket = @stream_socket_client($remote, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context);
+    if (!is_resource($socket)) {
+        throw new RuntimeException('SMTP connection failed.');
+    }
+    stream_set_timeout($socket, $timeout);
+
+    try {
+        smtp_expect($socket, [220]);
+        $serverName = preg_replace('/[^A-Za-z0-9.-]/', '', parse_url(site_url(), PHP_URL_HOST) ?: 'kinyan.shop') ?: 'kinyan.shop';
+        smtp_write($socket, 'EHLO ' . $serverName);
+        smtp_expect($socket, [250]);
+
+        if ($encryption === 'tls') {
+            smtp_write($socket, 'STARTTLS');
+            smtp_expect($socket, [220]);
+            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                throw new RuntimeException('SMTP TLS negotiation failed.');
+            }
+            smtp_write($socket, 'EHLO ' . $serverName);
+            smtp_expect($socket, [250]);
+        }
+
+        smtp_write($socket, 'AUTH LOGIN');
+        smtp_expect($socket, [334]);
+        smtp_write($socket, base64_encode($user));
+        smtp_expect($socket, [334]);
+        smtp_write($socket, base64_encode($pass));
+        smtp_expect($socket, [235]);
+
+        smtp_write($socket, 'MAIL FROM:<' . $from . '>');
+        smtp_expect($socket, [250]);
+        smtp_write($socket, 'RCPT TO:<' . $to . '>');
+        smtp_expect($socket, [250, 251]);
+        smtp_write($socket, 'DATA');
+        smtp_expect($socket, [354]);
+
+        $messageHeaders = array_merge([
+            'Date: ' . date(DATE_RFC2822),
+            'To: <' . $to . '>',
+            'Subject: ' . smtp_header_encode($subject),
+        ], $headers);
+        smtp_write($socket, implode("\r\n", $messageHeaders) . "\r\n\r\n" . smtp_dot_stuff($body) . "\r\n.");
+        smtp_expect($socket, [250]);
+        smtp_write($socket, 'QUIT');
+    } finally {
+        fclose($socket);
+    }
+}
+
+function smtp_header_encode(string $value): string
+{
+    $clean = trim(preg_replace('/[\r\n]+/', ' ', $value) ?? $value);
+    if (preg_match('/^[\x20-\x7E]*$/', $clean)) {
+        return $clean;
+    }
+    return '=?UTF-8?B?' . base64_encode($clean) . '?=';
+}
+
+function smtp_dot_stuff(string $body): string
+{
+    $normalized = str_replace(["\r\n", "\r"], "\n", $body);
+    $lines = explode("\n", $normalized);
+    foreach ($lines as &$line) {
+        if (str_starts_with($line, '.')) {
+            $line = '.' . $line;
+        }
+    }
+    unset($line);
+    return implode("\r\n", $lines);
+}
+
+function smtp_write($socket, string $line): void
+{
+    if (@fwrite($socket, $line . "\r\n") === false) {
+        throw new RuntimeException('SMTP write failed.');
+    }
+}
+
+function smtp_expect($socket, array $codes): string
+{
+    $response = smtp_read_response($socket);
+    $code = (int)substr($response, 0, 3);
+    if (!in_array($code, $codes, true)) {
+        throw new RuntimeException('SMTP server returned unexpected response ' . $code . '.');
+    }
+    return $response;
+}
+
+function smtp_read_response($socket): string
+{
+    $response = '';
+    while (($line = fgets($socket, 515)) !== false) {
+        $response .= $line;
+        if (preg_match('/^\d{3}\s/', $line)) {
+            return $response;
+        }
+    }
+    throw new RuntimeException('SMTP response was incomplete.');
 }
 
 function car_primary_image(int $listingId): ?string
@@ -367,34 +627,42 @@ function require_rate_limit(string $key, int $seconds = 60): void
 
 function require_app_rate_limit(string $action, int $limit, int $windowSeconds): void
 {
-    $identity = current_user()['id'] ?? ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
-    $key = hash('sha256', $action . '|' . $identity);
+    $userId = (int)(current_user()['id'] ?? 0);
+    $ip = (string)($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $identities = $userId > 0
+        ? ['user:' . $userId => $limit, 'ip:' . $ip => max($limit * 10, $limit + 20)]
+        : ['ip:' . $ip => $limit];
     $resetAt = date('Y-m-d H:i:s', time() + $windowSeconds);
 
-    db()->prepare('DELETE FROM rate_limits WHERE reset_at < NOW()')->execute();
-    $stmt = db()->prepare('SELECT hits, reset_at FROM rate_limits WHERE rate_key = ? LIMIT 1');
-    $stmt->execute([$key]);
-    $row = $stmt->fetch();
-
-    if (!$row) {
-        db()->prepare('INSERT INTO rate_limits (rate_key, hits, reset_at) VALUES (?, 1, ?)')->execute([$key, $resetAt]);
-        return;
+    if (random_int(1, 100) === 1) {
+        db()->prepare('DELETE FROM rate_limits WHERE reset_at < NOW() LIMIT 1000')->execute();
     }
 
-    if ((int)$row['hits'] >= $limit) {
-        $retryAt = strtotime((string)$row['reset_at']) ?: (time() + $windowSeconds);
-        $wait = max(1, (int)ceil(($retryAt - time()) / 60));
-        http_response_code(429);
-        if (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') || strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest') {
-            header('Content-Type: application/json');
-            echo json_encode(['ok' => false, 'error' => 'Too many attempts. Please wait about ' . $wait . ' minute' . ($wait === 1 ? '' : 's') . ' and try again.']);
-            exit;
+    foreach ($identities as $identity => $identityLimit) {
+        $key = hash('sha256', $action . '|' . $identity);
+        $stmt = db()->prepare('INSERT INTO rate_limits (rate_key, hits, reset_at) VALUES (?, 1, ?)
+            ON DUPLICATE KEY UPDATE
+                hits = IF(reset_at <= NOW(), 1, hits + 1),
+                reset_at = IF(reset_at <= NOW(), VALUES(reset_at), reset_at)');
+        $stmt->execute([$key, $resetAt]);
+        $read = db()->prepare('SELECT hits, reset_at FROM rate_limits WHERE rate_key = ? LIMIT 1');
+        $read->execute([$key]);
+        $row = $read->fetch();
+        if ($row && (int)$row['hits'] > $identityLimit) {
+            $retryAt = strtotime((string)$row['reset_at']) ?: (time() + $windowSeconds);
+            $retrySeconds = max(1, $retryAt - time());
+            $wait = max(1, (int)ceil($retrySeconds / 60));
+            http_response_code(429);
+            header('Retry-After: ' . $retrySeconds);
+            if (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json') || strtolower($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest') {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => false, 'error' => 'Too many attempts. Please wait about ' . $wait . ' minute' . ($wait === 1 ? '' : 's') . ' and try again.']);
+                exit;
+            }
+            flash('error', 'Too many attempts. Please wait about ' . $wait . ' minute' . ($wait === 1 ? '' : 's') . ' and try again.');
+            redirect($_SERVER['HTTP_REFERER'] ?? 'index.php');
         }
-        flash('error', 'Too many attempts. Please wait about ' . $wait . ' minute' . ($wait === 1 ? '' : 's') . ' and try again.');
-        redirect($_SERVER['HTTP_REFERER'] ?? 'index.php');
     }
-
-    db()->prepare('UPDATE rate_limits SET hits = hits + 1 WHERE rate_key = ?')->execute([$key]);
 }
 
 function validate_choice(string $value, array $allowed, string $fallback = ''): string
@@ -415,7 +683,11 @@ function upload_car_images(int $listingId, array $files): array
     }
 
     $validUploads = [];
-    $allowedExt = ['jpg', 'jpeg', 'jfif', 'png', 'webp'];
+    $allowedExtByType = [
+        IMAGETYPE_JPEG => ['jpg', 'jpeg', 'jfif'],
+        IMAGETYPE_PNG => ['png'],
+        IMAGETYPE_WEBP => ['webp'],
+    ];
     $allowedMimeByType = [
         IMAGETYPE_JPEG => 'image/jpeg',
         IMAGETYPE_PNG => 'image/png',
@@ -446,9 +718,9 @@ function upload_car_images(int $listingId, array $files): array
         $imageInfo = @getimagesize($tmp);
         $imageType = @exif_imagetype($tmp);
         if (
-            !in_array($ext, $allowedExt, true) ||
+            !in_array($ext, $allowedExtByType[$imageType] ?? [], true) ||
             !isset($allowedMimeByType[$imageType]) ||
-            (!str_starts_with($mime, 'image/') && $mime !== 'application/octet-stream') ||
+            ($mime !== $allowedMimeByType[$imageType] && $mime !== 'application/octet-stream') ||
             !$imageInfo ||
             ($imageInfo[2] ?? null) !== $imageType
         ) {
@@ -530,8 +802,10 @@ function update_history_report(int $listingId, array $file, bool $remove): array
     $mime = (string)(new finfo(FILEINFO_MIME_TYPE))->file($tmp);
     $handle = @fopen($tmp, 'rb');
     $signature = $handle ? (string)fread($handle, 5) : '';
+    $pdfContent = $handle ? (string)stream_get_contents($handle) : '';
     if ($handle) fclose($handle);
-    if (!in_array($mime, ['application/pdf', 'application/x-pdf'], true) || $signature !== '%PDF-') {
+    $dangerousPdfFeatures = preg_match('#/(JavaScript|JS|OpenAction|Launch|EmbeddedFile|RichMedia|XFA|AcroForm)\b#i', $pdfContent);
+    if (!in_array($mime, ['application/pdf', 'application/x-pdf'], true) || $signature !== '%PDF-' || !str_contains(substr($pdfContent, -2048), '%%EOF') || $dangerousPdfFeatures) {
         throw new RuntimeException('Upload a valid PDF history report.');
     }
 
@@ -576,6 +850,13 @@ function sanitize_uploaded_image(string $source, string $dest): bool
         $image = new Imagick();
         $image->setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 128 * 1024 * 1024);
         $image->setResourceLimit(Imagick::RESOURCETYPE_MAP, 256 * 1024 * 1024);
+        $image->setResourceLimit(Imagick::RESOURCETYPE_DISK, 512 * 1024 * 1024);
+        if (defined('Imagick::RESOURCETYPE_THREAD')) {
+            $image->setResourceLimit(Imagick::RESOURCETYPE_THREAD, 1);
+        }
+        if (defined('Imagick::RESOURCETYPE_TIME')) {
+            $image->setResourceLimit(Imagick::RESOURCETYPE_TIME, 20);
+        }
         $image->readImage($source);
         $image->setIteratorIndex(0);
         $frame = $image->getImage();
@@ -636,8 +917,8 @@ function save_contact_click(string $targetType, int $targetId, string $method): 
     if (!in_array($method, ['call', 'text', 'email', 'copy_link', 'share'], true)) {
         return;
     }
-    $stmt = db()->prepare('INSERT INTO contact_clicks (target_type, target_id, method, ip_address, created_at) VALUES (?, ?, ?, ?, NOW())');
-    $stmt->execute([$targetType, $targetId, $method, $_SERVER['REMOTE_ADDR'] ?? '']);
+    $stmt = db()->prepare('INSERT INTO contact_clicks (target_type, target_id, method, ip_address, created_at) VALUES (?, ?, ?, NULL, NOW())');
+    $stmt->execute([$targetType, $targetId, $method]);
 }
 
 function contact_click_stats(string $targetType, array $targetIds): array
@@ -674,8 +955,20 @@ function contact_click_stats(string $targetType, array $targetIds): array
     return $stats;
 }
 
-function report_target(string $targetType, int $targetId, string $reason, string $details): void
+function report_target(string $targetType, int $targetId, string $reason, string $details): bool
 {
+    $reason = trim($reason);
+    $details = trim($details);
+    if (!in_array($targetType, ['car', 'wanted'], true) || $targetId <= 0 || $reason === '' || mb_strlen($reason) > 120 || mb_strlen($details) > 4000) {
+        return false;
+    }
+    $table = $targetType === 'car' ? 'car_listings' : 'wanted_posts';
+    $exists = db()->prepare("SELECT 1 FROM {$table} WHERE id = ? AND status = 'active' LIMIT 1");
+    $exists->execute([$targetId]);
+    if (!$exists->fetchColumn()) {
+        return false;
+    }
     $stmt = db()->prepare('INSERT INTO reports (user_id, target_type, target_id, reason, details, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
     $stmt->execute([current_user()['id'] ?? null, $targetType, $targetId, $reason, $details]);
+    return true;
 }

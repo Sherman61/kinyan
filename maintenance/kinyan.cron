@@ -1,0 +1,2 @@
+# Kinyan daily listing expiration. Output is sent to the system journal/syslog.
+15 3 * * * www-data /usr/bin/php /var/www/kinyan/maintenance/expire-listings.php 2>&1 | /usr/bin/logger -t kinyan-maintenance

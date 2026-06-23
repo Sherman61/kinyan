@@ -1,6 +1,19 @@
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelector('[data-nav-toggle]')?.addEventListener('click', () => {
-    document.querySelector('[data-nav]')?.classList.toggle('open');
+  const navToggle = document.querySelector('[data-nav-toggle]');
+  const nav = document.querySelector('[data-nav]');
+  const setNavOpen = (open, restoreFocus = false) => {
+    if (!nav || !navToggle) return;
+    nav.classList.toggle('open', open);
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    navToggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    navToggle.textContent = open ? '×' : '☰';
+    document.body.classList.toggle('mobile-overlay-open', open && matchMedia('(max-width: 720px)').matches);
+    if (open) nav.querySelector('a, button')?.focus();
+    if (!open && restoreFocus) navToggle.focus();
+  };
+  navToggle?.addEventListener('click', () => setNavOpen(!nav?.classList.contains('open')));
+  nav?.addEventListener('click', (event) => {
+    if (event.target.closest('a')) setNavOpen(false);
   });
 
   const offlineBanner = document.querySelector('[data-offline-banner]');
@@ -74,24 +87,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (event.key === 'Escape' && confirmModal?.hidden === false) closeConfirm(false);
   });
 
+  const setFiltersOpen = (layout, open, restoreFocus = false) => {
+    const filters = layout?.querySelector('[data-filters]');
+    if (!layout || !filters) return;
+    layout.classList.toggle('filters-collapsed', !open);
+    layout.classList.toggle('filters-open', open);
+    filters.classList.toggle('open', open);
+    layout.querySelectorAll('[data-filter-toggle]').forEach((toggle) => toggle.setAttribute('aria-expanded', open ? 'true' : 'false'));
+    document.body.classList.toggle('mobile-overlay-open', open && matchMedia('(max-width: 720px)').matches);
+    if (open && matchMedia('(max-width: 720px)').matches) filters.querySelector('input, select, button')?.focus();
+    if (!open && restoreFocus) layout.querySelector('.filter-toggle-button')?.focus();
+  };
   document.querySelectorAll('[data-filter-toggle]').forEach((button) => {
     button.addEventListener('click', () => {
       const layout = button.closest('[data-browse-layout]') || document.querySelector('[data-browse-layout]');
-      const filters = layout?.querySelector('[data-filters], .filters') || document.querySelector('[data-filters], .filters');
-      if (layout) {
-        const shouldOpen = layout.classList.contains('filters-collapsed');
-        layout.classList.toggle('filters-collapsed', !shouldOpen);
-        layout.classList.toggle('filters-open', shouldOpen);
-        layout.querySelectorAll('[data-filter-toggle]').forEach((toggle) => {
-          toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
-        });
-      }
-      filters?.classList.toggle('open');
+      setFiltersOpen(layout, !layout?.classList.contains('filters-open'), button.classList.contains('filter-close'));
     });
   });
 
   const grid = document.querySelector('[data-results-grid]');
-  document.querySelector('[data-grid-toggle]')?.addEventListener('click', () => grid?.classList.toggle('list-mode'));
+  document.querySelector('[data-grid-toggle]')?.addEventListener('click', (event) => {
+    const listMode = !grid?.classList.contains('list-mode');
+    grid?.classList.toggle('list-mode', listMode);
+    event.currentTarget.setAttribute('aria-pressed', listMode ? 'true' : 'false');
+    event.currentTarget.setAttribute('aria-label', listMode ? 'Switch to grid view' : 'Switch to list view');
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (nav?.classList.contains('open')) setNavOpen(false, true);
+    const openLayout = document.querySelector('[data-browse-layout].filters-open');
+    if (openLayout) setFiltersOpen(openLayout, false, true);
+  });
 
   const galleryMain = document.querySelector('[data-gallery-main]');
   const lightbox = document.querySelector('[data-lightbox]');
@@ -156,23 +183,44 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   setGalleryImage(0);
 
-  const saved = new Set(JSON.parse(localStorage.getItem('kinyan_saved_cars') || '[]'));
-  const saveSavedCars = () => localStorage.setItem('kinyan_saved_cars', JSON.stringify([...saved]));
+  const authenticated = document.querySelector('meta[name="authenticated-user"]')?.content === '1';
+  const accountSaved = (document.querySelector('meta[name="saved-car-ids"]')?.content || '').split(',').filter(Boolean);
+  const saved = new Set(authenticated ? accountSaved : JSON.parse(localStorage.getItem('kinyan_saved_cars') || '[]'));
+  const saveSavedCars = () => {
+    if (!authenticated) localStorage.setItem('kinyan_saved_cars', JSON.stringify([...saved]));
+  };
   const syncSaveButtons = (root = document) => {
     root.querySelectorAll('[data-save-car]').forEach((button) => {
+      const id = button.dataset.saveCar;
+      button.classList.toggle('saved', saved.has(id));
+      button.textContent = saved.has(id) ? '♥' : '♡';
+      button.setAttribute('aria-label', saved.has(id) ? 'Remove saved car' : 'Save car');
       if (button.dataset.saveReady) return;
       button.dataset.saveReady = '1';
-      const id = button.dataset.saveCar;
-      if (saved.has(id)) {
-        button.classList.add('saved');
-        button.textContent = '♥';
-      }
-      button.addEventListener('click', (event) => {
+      button.addEventListener('click', async (event) => {
         event.preventDefault();
-        saved.has(id) ? saved.delete(id) : saved.add(id);
+        const shouldSave = !saved.has(id);
+        shouldSave ? saved.add(id) : saved.delete(id);
         saveSavedCars();
         button.classList.toggle('saved');
         button.textContent = saved.has(id) ? '♥' : '♡';
+        button.setAttribute('aria-label', saved.has(id) ? 'Remove saved car' : 'Save car');
+        if (authenticated) {
+          const data = new FormData();
+          data.set('csrf_token', document.querySelector('meta[name="csrf-token"]')?.content || '');
+          data.set('car_id', id);
+          data.set('save', shouldSave ? '1' : '0');
+          try {
+            const response = await fetch('saved-action.php', { method: 'POST', body: data, headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('Save failed');
+            showToast(shouldSave ? 'Car saved to your account.' : 'Car removed from saved listings.', 'success');
+          } catch {
+            shouldSave ? saved.delete(id) : saved.add(id);
+            syncSaveButtons();
+            showToast('Saved listings could not be updated. Please try again.', 'error');
+            return;
+          }
+        }
         const savedPage = document.querySelector('[data-saved-page]');
         if (savedPage && !saved.has(id)) {
           button.closest('.car-card')?.remove();
@@ -189,6 +237,136 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   syncSaveButtons();
 
+  const compared = new Set(JSON.parse(localStorage.getItem('kinyan_compared_cars') || '[]'));
+  const renderCompareBar = () => {
+    document.querySelector('[data-compare-bar]')?.remove();
+    if (compared.size < 2) return;
+    const bar = document.createElement('div');
+    bar.className = 'compare-bar';
+    bar.dataset.compareBar = '1';
+    const text = document.createElement('span');
+    text.textContent = `${compared.size} cars selected`;
+    const link = document.createElement('a');
+    link.className = 'button small';
+    link.href = `compare.php?ids=${encodeURIComponent([...compared].join(','))}`;
+    link.textContent = 'Compare cars';
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'button ghost small';
+    clear.textContent = 'Clear';
+    clear.addEventListener('click', () => {
+      compared.clear();
+      localStorage.removeItem('kinyan_compared_cars');
+      document.querySelectorAll('[data-compare-car]').forEach((button) => button.classList.remove('selected'));
+      renderCompareBar();
+    });
+    bar.append(text, link, clear);
+    document.body.append(bar);
+  };
+  const syncCompareButtons = (root = document) => root.querySelectorAll('[data-compare-car]').forEach((button) => {
+    const id = button.dataset.compareCar;
+    button.classList.toggle('selected', compared.has(id));
+    if (button.dataset.compareReady) return;
+    button.dataset.compareReady = '1';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (compared.has(id)) {
+        compared.delete(id);
+      } else if (compared.size >= 4) {
+        showToast('Compare up to 4 cars at a time. Remove one before adding another.', 'error');
+        return;
+      } else {
+        compared.add(id);
+      }
+      localStorage.setItem('kinyan_compared_cars', JSON.stringify([...compared]));
+      button.classList.toggle('selected', compared.has(id));
+      button.setAttribute('aria-label', compared.has(id) ? 'Remove car from comparison' : 'Add car to comparison');
+      renderCompareBar();
+    });
+  });
+  syncCompareButtons();
+  renderCompareBar();
+
+  document.querySelectorAll('[data-browse-layout]').forEach((layout) => {
+    const region = layout.querySelector('[data-results-region]');
+    const count = layout.querySelector('[data-results-count]');
+    const filterForm = layout.querySelector('[data-browse-form]');
+    const sortForm = layout.querySelector('[data-sort-form]');
+    let lastRequestedUrl = location.href;
+    let controller = null;
+
+    const refreshResults = async (displayUrl, pushHistory = true, scrollToResults = false) => {
+      if (!region) return;
+      if (!navigator.onLine) {
+        showToast('You are offline. Reconnect and try refreshing the results again.', 'error');
+        return;
+      }
+      controller?.abort();
+      controller = new AbortController();
+      const activeController = controller;
+      lastRequestedUrl = displayUrl;
+      const requestUrl = new URL(displayUrl, location.href);
+      requestUrl.searchParams.set('partial', '1');
+      region.setAttribute('aria-busy', 'true');
+      region.classList.add('is-refreshing');
+      layout.querySelector('[data-refresh-error]')?.remove();
+      try {
+        const response = await fetch(requestUrl, {
+          signal: activeController.signal,
+          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (!response.ok) throw new Error('Results request failed.');
+        const data = await response.json();
+        if (!data.ok || typeof data.html !== 'string') throw new Error('Invalid results response.');
+        region.innerHTML = data.html;
+        const noun = location.pathname.includes('wanted.php') ? `wanted post${data.total === 1 ? '' : 's'}` : `car${data.total === 1 ? '' : 's'}`;
+        if (count) count.textContent = `${data.total} ${noun}`;
+        syncSaveButtons(region);
+        syncCompareButtons(region);
+        if (pushHistory) history.pushState({}, '', displayUrl);
+        if (scrollToResults) layout.querySelector('.browse-toolbar')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        setFiltersOpen(layout, false);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        const message = document.createElement('div');
+        message.className = 'browse-refresh-error';
+        message.dataset.refreshError = '1';
+        message.setAttribute('role', 'alert');
+        message.innerHTML = '<span>Results could not be refreshed. Your current results are still shown.</span><button class="button ghost small" type="button">Try again</button>';
+        message.querySelector('button').addEventListener('click', () => refreshResults(lastRequestedUrl, false));
+        region.before(message);
+      } finally {
+        if (controller === activeController) {
+          region.setAttribute('aria-busy', 'false');
+          region.classList.remove('is-refreshing');
+        }
+      }
+    };
+
+    filterForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const url = new URL(filterForm.action || location.pathname, location.href);
+      url.search = new URLSearchParams(new FormData(filterForm)).toString();
+      const currentSort = sortForm?.querySelector('[name="sort"]')?.value;
+      if (currentSort && currentSort !== 'newest') url.searchParams.set('sort', currentSort);
+      refreshResults(url.toString(), true, true);
+    });
+    sortForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const url = new URL(location.href);
+      url.searchParams.delete('page');
+      url.searchParams.set('sort', sortForm.querySelector('[name="sort"]')?.value || 'newest');
+      refreshResults(url.toString(), true, true);
+    });
+    region?.addEventListener('click', (event) => {
+      const link = event.target.closest('.pagination a');
+      if (!link) return;
+      event.preventDefault();
+      refreshResults(link.href, true, true);
+    });
+    window.addEventListener('popstate', () => refreshResults(location.href, false));
+  });
+
   const savedPage = document.querySelector('[data-saved-page]');
   if (savedPage) {
     const results = savedPage.querySelector('[data-saved-results]');
@@ -198,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (status) status.textContent = 'No saved listings yet.';
       if (results) results.innerHTML = '<div class="empty-state"><h3>No saved cars yet</h3><p>Tap the heart on a car to save it here for later.</p><a class="button" href="cars.php">Browse cars</a></div>';
     } else {
-      fetch(`saved.php?partial=1&ids=${encodeURIComponent(ids.join(','))}`, { headers: { Accept: 'text/html' } })
+      fetch(authenticated ? 'saved.php?partial=1' : `saved.php?partial=1&ids=${encodeURIComponent(ids.join(','))}`, { headers: { Accept: 'text/html' } })
         .then((response) => {
           if (!response.ok) throw new Error('Saved listings could not load.');
           return response.text();
@@ -207,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (results) {
             results.innerHTML = html;
             syncSaveButtons(results);
+            syncCompareButtons(results);
           }
           const count = results?.querySelectorAll('.car-card').length || 0;
           if (status) status.textContent = count ? `${count} saved ${count === 1 ? 'listing' : 'listings'}` : 'No saved listings found.';
@@ -229,9 +408,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const trackListingAction = (method) => {
     if (!method) return;
-    const url = new URL(location.href);
-    url.searchParams.set('contact', method);
-    navigator.sendBeacon(url.toString());
+    const target = document.querySelector('[data-contact-target-type][data-contact-target-id]');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (!target || !csrf) return;
+    const data = new FormData();
+    data.set('csrf_token', csrf);
+    data.set('target_type', target.dataset.contactTargetType || '');
+    data.set('target_id', target.dataset.contactTargetId || '');
+    data.set('method', method);
+    navigator.sendBeacon('contact-event.php', data);
   };
 
   document.querySelector('[data-copy-link]')?.addEventListener('click', async (event) => {
@@ -275,6 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.querySelectorAll('form').forEach((form) => {
     form.addEventListener('submit', (event) => {
+      if (event.defaultPrevented) return;
       const submit = event.submitter || form.querySelector('button[type="submit"], button:not([type])');
       const message = submit?.dataset.confirm || form.dataset.confirm;
       if (message && form.dataset.confirmed !== 'true') {
@@ -291,9 +477,24 @@ document.addEventListener('DOMContentLoaded', () => {
       if (form.matches('[data-upload-progress]')) {
         event.preventDefault();
         if (form.dataset.submitting === 'true') return;
+        const imageInput = form.querySelector('input[name="images[]"]');
+        const selectedFiles = [...(imageInput?.files || [])];
+        const files = selectedFiles.length;
+        const existing = Number.parseInt(form.dataset.existingImageCount || '0', 10);
+        const removed = form.querySelectorAll('input[name="delete_images[]"]:checked').length;
+        const reused = form.querySelectorAll('input[name="library_images[]"]:checked').length;
+        if (existing - removed + reused + files > 10) {
+          showToast('A car listing can have at most 10 photos. Remove or deselect some photos and try again.', 'error');
+          imageInput?.focus();
+          return;
+        }
+        if (selectedFiles.some((file) => file.size > 15 * 1024 * 1024)) {
+          showToast('Each photo must be 15MB or smaller. Remove the oversized photo and try again.', 'error');
+          imageInput?.focus();
+          return;
+        }
         form.dataset.submitting = 'true';
 
-        const files = form.querySelector('input[name="images[]"]')?.files?.length || 0;
         const hasReport = (form.querySelector('input[name="history_report"]')?.files?.length || 0) > 0;
         const uploadLabel = files && hasReport ? `${files} photo${files === 1 ? '' : 's'} and a history report` : files ? `${files} photo${files === 1 ? '' : 's'}` : hasReport ? 'a history report' : '';
         const status = form.querySelector('[data-upload-status]');
@@ -363,15 +564,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         xhr.send(new FormData(form));
         return;
-      }
-      const browseMain = form.closest('.browse-layout')?.querySelector('.browse-main');
-      if (browseMain) {
-        const results = browseMain.querySelector('[data-results-grid], .stack');
-        if (results) {
-          const count = results.classList.contains('stack') ? 4 : 8;
-          results.innerHTML = Array.from({ length: count }, () => '<article class="skeleton-card"><div></div><span></span><span></span><span></span></article>').join('');
-          results.classList.add('is-loading');
-        }
       }
       if (submit && submit.classList.contains('button')) {
         submit.dataset.originalText = submit.textContent;

@@ -39,4 +39,51 @@ User trust levels:
 
 ## Security Notes
 
-The app uses PDO prepared statements, password hashing, CSRF tokens, session cookie hardening, server-side validation, escaping, admin guards, ownership checks, MIME/extension image validation, and basic session rate limits for reports/contact tracking.
+The app uses PDO prepared statements, password hashing, CSRF tokens, session cookie hardening, server-side validation, escaping, admin guards, ownership checks, MIME/signature image validation, database-backed rate limits, secure password-reset tokens, and centralized error logging.
+
+Logged-in users have account-synced saved listings; guests retain browser-local saves. Browse results are paginated, and users can compare up to four active cars. Contact analytics use a CSRF-protected POST endpoint and never control whether the direct call, text, or email action opens.
+
+## Database migrations and maintenance
+
+Apply every SQL file in `database/migrations/` in filename order when upgrading an existing installation. The migrations are idempotent and `database/schema.sql` remains the source of truth for fresh installations.
+
+Run listing expiration once per day from cron:
+
+```bash
+php /var/www/kinyan/maintenance/expire-listings.php
+```
+
+The repository includes `maintenance/kinyan.cron` for `/etc/cron.d/kinyan`. Verify database, writable image storage, and the most recent expiration run with:
+
+```bash
+php /var/www/kinyan/maintenance/health-check.php
+```
+
+The expiration period is configurable from Admin → Settings and defaults to 45 days. Owners can renew expired listings from their dashboard; normal moderation rules still apply.
+
+## Email delivery
+
+Password-reset emails are disabled unless `MAIL_ENABLED=true`. For Mailtrap Email Sending over SMTP, use the token as the SMTP password and `api` as the SMTP username:
+
+```env
+MAIL_ENABLED=true
+MAIL_TRANSPORT=smtp
+MAIL_FROM=support@kinyan.shop
+MAIL_FROM_NAME=Kinyan
+SMTP_HOST=live.smtp.mailtrap.io
+SMTP_PORT=587
+SMTP_ENCRYPTION=tls
+SMTP_USER=api
+SMTP_PASS=your-mailtrap-api-token
+```
+
+If outbound port 587 is blocked by the host, use Mailtrap's alternate SMTP port `2525`. This server was tested with `2525`.
+
+Keep `MAIL_ENABLED=false` until a reset email test succeeds. When email is disabled or SMTP is incomplete, the password-reset screen shows users that the email service is temporarily offline and asks them to try again later.
+
+After sending a test, check Mailtrap sent logs at https://mailtrap.io/sending/email_logs.
+
+## Deployment follow-ups
+
+- Configure an authenticated SMTP relay such as Mailtrap on port 587, then send a real password-reset test email before enabling production resets.
+- Keep `kinyan.shop` as the preferred application URL. `kinyan.live` remains available through its separate Apache virtual host.

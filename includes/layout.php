@@ -6,8 +6,20 @@ function render_header(string $title, string $description = '', array $meta = []
     $fullTitle = $title === APP_NAME ? APP_NAME : $title . ' | ' . APP_NAME;
     $description = $description ?: 'Kinyan is a direct-contact car marketplace for cars for sale and wanted car posts.';
     $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    $privatePages = ['login.php','register.php','forgot-password.php','reset-password.php','dashboard.php','saved.php','library.php','post-car.php','post-wanted.php','compare.php'];
+    $meta['noindex'] = !empty($meta['noindex']) || str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/admin/') || in_array($current, $privatePages, true);
     $prefix = str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/admin/') ? '../' : '';
     $user = current_user();
+    $savedIds = [];
+    if ($user) {
+        try {
+            $savedStmt = db()->prepare('SELECT car_listing_id FROM saved_listings WHERE user_id = ? ORDER BY created_at DESC LIMIT 500');
+            $savedStmt->execute([$user['id']]);
+            $savedIds = array_map('intval', $savedStmt->fetchAll(PDO::FETCH_COLUMN));
+        } catch (PDOException) {
+            $savedIds = [];
+        }
+    }
     $openErrorCount = ($user['role'] ?? '') === 'admin' ? app_open_error_count() : 0;
     $metaImage = !empty($meta['image']) ? site_url((string)$meta['image']) : '';
     $metaImageAlt = (string)($meta['image_alt'] ?? $fullTitle);
@@ -17,11 +29,16 @@ function render_header(string $title, string $description = '', array $meta = []
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+    <meta name="authenticated-user" content="<?= $user ? '1' : '0' ?>">
+    <meta name="saved-car-ids" content="<?= e(implode(',', $savedIds)) ?>">
     <title><?= e($fullTitle) ?></title>
     <meta name="description" content="<?= e($description) ?>">
     <meta property="og:title" content="<?= e($fullTitle) ?>">
     <meta property="og:description" content="<?= e($description) ?>">
     <meta property="og:type" content="<?= e($meta['type'] ?? 'website') ?>">
+    <?php if (!empty($meta['canonical'])): ?><link rel="canonical" href="<?= e(site_url((string)$meta['canonical'])) ?>"><?php endif; ?>
+    <?php if (!empty($meta['noindex'])): ?><meta name="robots" content="noindex,nofollow"><?php endif; ?>
     <?php if ($metaImage): ?>
     <meta property="og:image" content="<?= e($metaImage) ?>">
     <meta property="og:image:secure_url" content="<?= e($metaImage) ?>">
@@ -36,8 +53,8 @@ function render_header(string $title, string $description = '', array $meta = []
 <body>
 <header class="site-header">
     <a class="brand" href="<?= $prefix ?>index.php"><span>K</span>Kinyan</a>
-    <button class="nav-toggle" data-nav-toggle aria-label="Open navigation">☰</button>
-    <nav class="site-nav" data-nav>
+    <button class="nav-toggle" type="button" data-nav-toggle aria-label="Open navigation" aria-controls="site-navigation" aria-expanded="false">☰</button>
+    <nav class="site-nav" id="site-navigation" data-nav aria-label="Primary navigation">
         <a class="<?= $current === 'cars.php' ? 'active' : '' ?>" href="<?= $prefix ?>cars.php">Cars</a>
         <a class="<?= $current === 'saved.php' ? 'active' : '' ?>" href="<?= $prefix ?>saved.php">Saved</a>
         <a class="<?= $current === 'vin-check.php' ? 'active' : '' ?>" href="<?= $prefix ?>vin-check.php">VIN Check</a>
@@ -48,7 +65,7 @@ function render_header(string $title, string $description = '', array $meta = []
             <a href="<?= $prefix ?>dashboard.php">Dashboard</a>
             <a class="<?= $current === 'library.php' ? 'active' : '' ?>" href="<?= $prefix ?>library.php">Library</a>
             <?php if (($user['role'] ?? '') === 'admin'): ?><a href="<?= $prefix ?>admin/index.php">Admin</a><?php endif; ?>
-            <a href="<?= $prefix ?>login.php?action=logout">Log out</a>
+            <form class="nav-logout" method="post" action="<?= $prefix ?>login.php"><?= csrf_field() ?><button type="submit" name="action" value="logout">Log out</button></form>
         <?php else: ?>
             <a href="<?= $prefix ?>login.php">Log in</a>
             <a class="button small" href="<?= $prefix ?>register.php">Register</a>
@@ -111,7 +128,7 @@ function render_admin_nav(string $active = ''): void
         $counts = db()->query("SELECT
             (SELECT COUNT(*) FROM car_listings WHERE status = 'pending') pending_cars,
             (SELECT COUNT(*) FROM wanted_posts WHERE status = 'pending') pending_wanted,
-            (SELECT COUNT(*) FROM reports) reports,
+            (SELECT COUNT(*) FROM reports WHERE status IN ('open','investigating')) reports,
             (SELECT COUNT(*) FROM app_errors WHERE status = 'open') errors")->fetch() ?: $counts;
     } catch (Throwable) {
     }

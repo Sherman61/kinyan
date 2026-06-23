@@ -45,6 +45,17 @@ load_env_file(BASE_PATH . '/.env');
 ini_set('display_errors', getenv('APP_DEBUG') === 'true' ? '1' : '0');
 error_reporting(E_ALL);
 
+if (PHP_SAPI !== 'cli' && !headers_sent()) {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+    header("Content-Security-Policy: default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.unsplash.com; connect-src 'self'");
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
+}
+
 $dbHost = getenv('DB_HOST') ?: '127.0.0.1';
 $dbName = getenv('DB_NAME') ?: 'kinyan';
 $dbUser = getenv('DB_USER') ?: 'kinyan_user';

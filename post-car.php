@@ -45,7 +45,8 @@ if (is_post()) {
         $data['price'] = $data['lease_down_payment'] ?? 0;
     }
     $errors = [];
-    foreach (['title','make','model','description','city','state','seller_name','seller_phone'] as $required) if ($data[$required] === '') $errors[] = ucfirst(str_replace('_',' ', $required)) . ' is required.';
+    if (!human_submission_passes($editing ? 'edit_car' : 'post_car')) $errors[] = 'We could not verify that submission. Please try again.';
+    foreach (['title','make','model','city','state','seller_name','seller_phone'] as $required) if ($data[$required] === '') $errors[] = ucfirst(str_replace('_',' ', $required)) . ' is required.';
     if ($data['year'] < 1900 || $data['year'] > ((int)date('Y') + 1)) $errors[] = 'Enter a valid year.';
     if (!$data['lease_takeover'] && $data['price'] <= 0) $errors[] = 'Enter a valid asking price.';
     if ($data['mileage'] < 0) $errors[] = 'Enter valid mileage.';
@@ -213,8 +214,9 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
 <section class="form-shell">
     <h1><?= $editing ? 'Edit car listing' : 'Post your car' ?></h1>
     <p class="form-intro">Use the regular sale price for cars being sold. For a lease takeover, check the lease box and fill in the monthly payment, takeover amount, and lease end date.</p>
-    <form method="post" enctype="multipart/form-data" class="form-grid" data-upload-progress>
+    <form method="post" enctype="multipart/form-data" class="form-grid" data-upload-progress data-existing-image-count="<?= count($existingImages) ?>">
         <?= csrf_field() ?>
+        <?= bot_protection_fields($editing ? 'edit_car' : 'post_car') ?>
         <div class="form-section full"><h2>Vehicle basics</h2><p>These fields appear in search results and on the listing page.</p></div>
         <label class="full listing-title-field"><span>Listing headline</span><input required maxlength="180" name="title" value="<?= e($car['title'] ?? '') ?>" placeholder="Example: 2019 Toyota Sienna XLE with clean title" data-listing-title><small><span data-title-count><?= mb_strlen((string)($car['title'] ?? '')) ?></span>/180 characters. Include the year, make, model, and one useful detail buyers will notice.</small></label>
         <label>Make<input required name="make" value="<?= e($car['make'] ?? '') ?>" placeholder="Toyota"></label>
@@ -265,7 +267,7 @@ render_header($editing ? 'Edit Car Listing' : 'Post Your Car', 'Post a car for s
             </div>
         </fieldset>
         <div class="form-section full"><h2>Condition and seller notes</h2><p>Be direct about condition, title, maintenance, and anything a buyer should know before calling.</p></div>
-        <label class="full">Description<textarea required name="description" rows="6" placeholder="Example: Clean family minivan, non-smoker, recent tires and brakes, oil changed regularly. Small scratch on rear bumper. Available to show in Lakewood evenings."><?= e($car['description'] ?? '') ?></textarea></label>
+        <label class="full">Description optional<textarea name="description" rows="6" placeholder="Example: Clean family minivan, non-smoker, recent tires and brakes, oil changed regularly. Small scratch on rear bumper. Available to show in Lakewood evenings."><?= e($car['description'] ?? '') ?></textarea><small>Optional, but useful details help buyers decide whether to contact you.</small></label>
         <div class="form-section full"><h2>Location and contact</h2><p>This is what buyers use to contact you directly. Email is optional.</p></div>
         <label>City<input required name="city" value="<?= e($car['city'] ?? '') ?>" placeholder="Lakewood"></label>
         <label>State<input required maxlength="2" name="state" value="<?= e($car['state'] ?? '') ?>" placeholder="NJ"></label>

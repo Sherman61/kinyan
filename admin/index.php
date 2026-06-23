@@ -8,7 +8,7 @@ $stats = [
     ['label' => 'Pending cars', 'value' => db()->query("SELECT COUNT(*) FROM car_listings WHERE status='pending'")->fetchColumn(), 'href' => 'listings.php?status=pending'],
     ['label' => 'Pending wanted', 'value' => db()->query("SELECT COUNT(*) FROM wanted_posts WHERE status='pending'")->fetchColumn(), 'href' => 'wanted.php?status=pending'],
     ['label' => 'Sold listings', 'value' => db()->query("SELECT COUNT(*) FROM car_listings WHERE status='sold'")->fetchColumn(), 'href' => 'listings.php?status=sold'],
-    ['label' => 'Reported posts', 'value' => db()->query('SELECT COUNT(*) FROM reports')->fetchColumn(), 'href' => 'reports.php'],
+    ['label' => 'Open reports', 'value' => db()->query("SELECT COUNT(*) FROM reports WHERE status IN ('open','investigating')")->fetchColumn(), 'href' => 'reports.php?status=open'],
     ['label' => 'Open errors', 'value' => app_open_error_count(), 'href' => 'errors.php?status=open'],
 ];
 $mostViewed = db()->query("SELECT id,title,views FROM car_listings ORDER BY views DESC LIMIT 8")->fetchAll();

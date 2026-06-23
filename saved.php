@@ -4,6 +4,11 @@ require_once __DIR__ . '/includes/cards.php';
 
 function saved_listing_ids(): array
 {
+    if (is_logged_in()) {
+        $stmt = db()->prepare('SELECT car_listing_id FROM saved_listings WHERE user_id = ? ORDER BY created_at DESC LIMIT 500');
+        $stmt->execute([current_user()['id']]);
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
     $ids = preg_split('/\s*,\s*/', (string)($_GET['ids'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
     $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn($id) => $id > 0)));
     return array_slice($ids, 0, 80);

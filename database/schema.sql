@@ -65,6 +65,10 @@ CREATE TABLE IF NOT EXISTS car_listings (
   INDEX idx_price (price),
   INDEX idx_year (year),
   INDEX idx_vehicle_history (vehicle_history),
+  INDEX idx_status_price (status, price),
+  INDEX idx_status_year_mileage (status, year, mileage),
+  INDEX idx_status_lease_payment (status, lease_takeover, lease_monthly_payment),
+  INDEX idx_status_location (status, state, city),
   CONSTRAINT fk_cars_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
@@ -117,8 +121,37 @@ CREATE TABLE IF NOT EXISTS reports (
   target_id INT UNSIGNED NOT NULL,
   reason VARCHAR(120) NOT NULL,
   details TEXT NULL,
+  status ENUM('open','investigating','resolved','dismissed') NOT NULL DEFAULT 'open',
+  admin_notes TEXT NULL,
+  resolved_by INT UNSIGNED NULL,
+  resolved_at DATETIME NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_reports_target (target_type, target_id)
+  INDEX idx_reports_target (target_type, target_id),
+  INDEX idx_reports_status_created (status, created_at),
+  CONSTRAINT fk_reports_resolved_by FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS saved_listings (
+  user_id INT UNSIGNED NOT NULL,
+  car_listing_id INT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, car_listing_id),
+  INDEX idx_saved_listing (car_listing_id),
+  CONSTRAINT fk_saved_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_saved_car FOREIGN KEY (car_listing_id) REFERENCES car_listings(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS account_tokens (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id INT UNSIGNED NOT NULL,
+  purpose ENUM('password_reset','email_verify') NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_account_tokens_user_purpose (user_id, purpose, expires_at),
+  INDEX idx_account_tokens_expires (expires_at),
+  CONSTRAINT fk_account_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS site_settings (
@@ -179,6 +212,7 @@ CREATE TABLE IF NOT EXISTS app_errors (
 
 INSERT INTO site_settings (setting_key, setting_value) VALUES
 ('auto_approve_listings', '0'),
+('listing_expiration_days', '45'),
 ('site_name', 'Kinyan'),
 ('support_email', 'support@kinyan.live')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);

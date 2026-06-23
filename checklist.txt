@@ -1,6 +1,22 @@
 Kinyan UI/UX State Checklist
 
-[ ] Idle
+Active remaining checklist
+
+[ ] Production readiness review before launch
+    Review the full uncommitted diff, confirm intended files only, and decide whether to commit/deploy the current batch.
+
+[ ] Final cross-device QA after deployment
+    Repeat browser QA on common phone, tablet, laptop, and desktop widths after the final deployed state is stable.
+
+[ ] Confirm domain behavior
+    Confirm kinyan.shop is the preferred canonical domain and kinyan.live remains available only as the intended separate/secondary host.
+
+[ ] Monitor first maintenance cycle
+    Cron is installed and a manual expiration run succeeded; confirm the scheduled daily run records a fresh health-check timestamp after the next scheduled cycle.
+
+Completed checklist history
+
+[x] Idle
     Page/form is ready before the user acts.
 
 [x] Loading
@@ -18,7 +34,7 @@ Kinyan UI/UX State Checklist
 [x] Submitting
     Forms show processing states. Car photo uploads show staged progress and disable submit.
 
-[ ] Refreshing
+[x] Refreshing
     Existing content stays visible while refreshed data is loading.
 
 [x] Error
@@ -30,17 +46,32 @@ Kinyan UI/UX State Checklist
 [x] Access Denied
     Permission and unavailable-record cases render styled status pages instead of plain die() text.
 
-[ ] First-Time Use
-    Empty states exist, but first-time guidance can still be improved further.
+[x] First-Time Use
+    New dashboards explain how to sell, post a wanted request, or browse first.
 
-[ ] Maintenance / Unavailable
-    Database unavailable still needs a styled maintenance page.
+[x] Maintenance / Unavailable
+    Database failures render a styled 503 page with a retry action and are recorded in the fallback log.
 
-Implemented in this pass:
+Completed earlier:
 - Styled access denied/not found/session-expired/slow-down status pages.
 - Offline banner that appears when the browser reports no connection.
 - Dismissible alerts were already present and remain part of the completed Error/Success states.
 
-Implemented after that:
-- Skeleton placeholders for browse/filter result refreshes.
+Completed after that:
+- In-place browse refreshes that preserve current results, expose progress to assistive technology, and provide offline and retry states.
 - Optional VIN checker on the car form that populates vehicle fields while leaving them editable.
+- Account-synced saved listings with a guest-browser fallback.
+- Paginated car and wanted-post results with accurate totals and filter reset actions.
+- First-use dashboard guidance and non-destructive report review states.
+- Listing expiration maintenance with owner renewal actions.
+- Secure password recovery with single-use, 30-minute reset tokens.
+- Side-by-side comparison for up to four active cars.
+- Mobile browse/detail layout improvements, accessible nav/filter controls, and mobile contact bar.
+- kinyan.shop Apache host configuration and preferred APP_URL setup.
+- Mailtrap SMTP configuration using environment variables.
+- Successful Mailtrap SMTP test email to koshersssss@gmail.com using port 2525.
+- Full password-reset workflow verified by browser: request reset, receive link, open link, set a new password, and log in.
+- Bot protection added to password reset and sell-listing forms with CSRF, rate limits, honeypot, one-time form token, and form-age checks.
+- Sell-listing description changed from required to optional.
+- Marketplace migration applied to the configured database.
+- Listing expiration maintenance run manually and health check confirmed clean.

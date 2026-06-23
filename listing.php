@@ -3,9 +3,8 @@ require_once __DIR__ . '/includes/bootstrap.php';
 require_once __DIR__ . '/includes/layout.php';
 require_once __DIR__ . '/includes/cards.php';
 $id = (int)($_GET['id'] ?? 0);
-if (isset($_GET['contact'])) { require_app_rate_limit('contact_car_' . $id, 30, 60); save_contact_click('car', $id, $_GET['contact']); exit('ok'); }
-if (is_post()) { verify_csrf(); require_app_rate_limit('report_car_' . $id, 5, 15 * 60); report_target('car', $id, trim($_POST['reason'] ?? 'Concern'), trim($_POST['details'] ?? '')); flash('success', 'Report submitted.'); redirect('listing.php?id=' . $id); }
-$stmt = db()->prepare('SELECT * FROM car_listings WHERE id = ?');
+if (is_post()) { verify_csrf(); require_app_rate_limit('report_car_' . $id, 5, 15 * 60); $reported = report_target('car', $id, $_POST['reason'] ?? '', $_POST['details'] ?? ''); flash($reported ? 'success' : 'error', $reported ? 'Report submitted.' : 'Enter a report reason up to 120 characters and details up to 4,000 characters.'); redirect('listing.php?id=' . $id); }
+$stmt = db()->prepare('SELECT c.*, u.created_at seller_member_since, u.trust_level seller_trust_level FROM car_listings c JOIN users u ON u.id = c.user_id WHERE c.id = ?');
 $stmt->execute([$id]);
 $car = $stmt->fetch();
 if (!$car || ($car['status'] !== 'active' && !owns_listing('car_listings', $id) && !is_admin())) render_status_page(404, 'Listing not found', 'This car listing is unavailable, pending approval, or no longer active.', ['Browse cars' => 'cars.php', 'Go home' => 'index.php']);
@@ -16,9 +15,10 @@ $primaryTitle = $images[0]['image_title'] ?? $car['title'];
 $shareImage = $images[0]['image_path'] ?? 'assets/share-default.jpg';
 $sim = db()->prepare("SELECT c.*, (SELECT image_path FROM car_images i WHERE i.car_listing_id = c.id ORDER BY sort_order, id LIMIT 1) AS primary_image FROM car_listings c WHERE c.status='active' AND c.id <> ? AND (c.make = ? OR c.body_type = ?) ORDER BY c.created_at DESC LIMIT 4");
 $sim->execute([$id, $car['make'], $car['body_type']]);
+$similarCars = $sim->fetchAll();
 $vehicleName = trim($car['year'] . ' ' . $car['make'] . ' ' . $car['model'] . ' ' . $car['trim']);
 $shareDescription = $vehicleName . ' on Kinyan: ' . (!empty($car['lease_takeover']) ? money($car['lease_monthly_payment']) . '/mo lease takeover' : money($car['price'])) . ', ' . number_short($car['mileage']) . ' miles, located in ' . $car['city'] . ', ' . $car['state'] . '. Contact the seller directly.';
-render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$shareImage,'image_alt'=>$images ? $primaryTitle : 'Kinyan car marketplace']);
+render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$shareImage,'image_alt'=>$images ? $primaryTitle : 'Kinyan car marketplace','canonical'=>'listing.php?id=' . $id . '&slug=' . slugify($car['title'])]);
 ?>
 <script type="application/ld+json"><?= json_encode(['@context'=>'https://schema.org','@type'=>'Vehicle','name'=>$car['title'],'brand'=>$car['make'],'model'=>$car['model'],'vehicleModelDate'=>$car['year'],'mileageFromOdometer'=>$car['mileage'],'offers'=>['@type'=>'Offer','price'=>$car['price'],'priceCurrency'=>'USD','availability'=>'https://schema.org/InStock']], JSON_UNESCAPED_SLASHES) ?></script>
 <section class="details-layout">
@@ -54,22 +54,29 @@ render_header($car['title'], $shareDescription, ['type'=>'product','image'=>$sha
         </div></section>
         <?php endif; ?>
     </div>
-    <aside class="contact-panel">
+    <aside class="contact-panel" data-contact-target-type="car" data-contact-target-id="<?= (int)$id ?>">
         <span class="badge <?= e($car['status']) ?>"><?= e(ucfirst($car['status'])) ?></span>
         <h1><?= e(trim($car['year'] . ' ' . $car['make'] . ' ' . $car['model'] . ' ' . $car['trim'])) ?></h1>
         <div class="price"><?= !empty($car['lease_takeover']) ? money($car['lease_monthly_payment']) . '/mo' : money($car['price']) ?></div>
         <?php if (!empty($car['lease_takeover'])): ?><p><span class="badge teal">Lease Takeover</span> <?= e((string)$car['lease_months_left']) ?> months left · <?= money($car['lease_down_payment']) ?> due at takeover</p><?php endif; ?>
         <p><?= e(number_short($car['mileage'])) ?> miles · <?= e($car['city']) ?>, <?= e($car['state']) ?></p>
         <h2>Contact Seller Directly</h2>
+        <p class="muted">Seller: <?= e($car['seller_name']) ?> · Member since <?= e(date('M Y', strtotime($car['seller_member_since']))) ?> · Trust level <?= (int)$car['seller_trust_level'] ?></p>
         <a class="button full-width" data-track-contact="call" href="tel:<?= e(clean_phone_href($car['seller_phone'])) ?>">Call Seller</a>
         <a class="button secondary full-width" data-track-contact="text" href="sms:<?= e(clean_phone_href($car['seller_phone'])) ?>">Text Seller</a>
         <?php if ($car['seller_email']): ?><a class="button ghost full-width" data-track-contact="email" href="mailto:<?= e($car['seller_email']) ?>">Email Seller</a><?php endif; ?>
         <button class="button ghost full-width" data-copy-link data-track-contact="copy_link">Copy link</button>
         <button class="button ghost full-width" data-share data-track-contact="share" data-share-text="<?= e($shareDescription) ?>">Share</button>
-        <form method="post" class="report-form"><?= csrf_field() ?><input name="reason" placeholder="Report reason"><textarea name="details" placeholder="Details"></textarea><button class="danger" type="submit">Report listing</button></form>
+        <form method="post" class="report-form"><?= csrf_field() ?><label>Reason<input required maxlength="120" name="reason" placeholder="Example: Incorrect price"></label><label>Details<textarea maxlength="4000" name="details" placeholder="Explain what should be reviewed"></textarea></label><button class="danger" type="submit">Report listing</button></form>
     </aside>
 </section>
-<section class="section"><div class="section-heading"><h2>Similar cars</h2></div><div class="grid cards-grid"><?php foreach ($sim->fetchAll() as $item) render_car_card($item); ?></div></section>
+<nav class="mobile-contact-bar" aria-label="Contact seller" data-contact-target-type="car" data-contact-target-id="<?= (int)$id ?>">
+    <a class="button" data-track-contact="call" href="tel:<?= e(clean_phone_href($car['seller_phone'])) ?>">Call seller</a>
+    <a class="button secondary" data-track-contact="text" href="sms:<?= e(clean_phone_href($car['seller_phone'])) ?>">Text seller</a>
+</nav>
+<?php if ($similarCars): ?>
+<section class="section"><div class="section-heading"><h2>Similar cars</h2></div><div class="grid cards-grid"><?php foreach ($similarCars as $item) render_car_card($item); ?></div></section>
+<?php endif; ?>
 <div class="image-lightbox" data-lightbox hidden>
     <button class="lightbox-close" type="button" data-lightbox-close aria-label="Close enlarged photo">×</button>
     <button class="lightbox-nav prev" type="button" data-gallery-prev aria-label="Previous photo">‹</button>
